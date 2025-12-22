@@ -123,6 +123,7 @@ serve(async (req) => {
         customer_name: string;
         customer_phone: string;
         customer_email?: string;
+        customer_id?: string;
         shipping_address: Record<string, string>;
         subtotal: number;
         delivery_fee: number;
@@ -144,6 +145,7 @@ serve(async (req) => {
         .insert({
           tenant_id: tenant.id,
           order_number: draftData.order_number,
+          customer_id: draftData.customer_id || null,
           customer_name: draftData.customer_name,
           customer_phone: draftData.customer_phone,
           customer_email: draftData.customer_email || null,
