@@ -14,6 +14,7 @@ import ProductDetail from "./pages/store/ProductDetail";
 import CartPage from "./pages/store/CartPage";
 import CheckoutPage from "./pages/store/CheckoutPage";
 import OrderConfirmation from "./pages/store/OrderConfirmation";
+import StoreGuard from "./components/storefront/StoreGuard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,12 +31,12 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/dashboard/*" element={<Dashboard />} />
-            <Route path="/store/:slug" element={<StoreHome />} />
-            <Route path="/store/:slug/products" element={<ProductList />} />
-            <Route path="/store/:slug/product/:productSlug" element={<ProductDetail />} />
-            <Route path="/store/:slug/cart" element={<CartPage />} />
-            <Route path="/store/:slug/checkout" element={<CheckoutPage />} />
-            <Route path="/store/:slug/order-confirmation" element={<OrderConfirmation />} />
+            <Route path="/store/:slug" element={<StoreGuard><StoreHome /></StoreGuard>} />
+            <Route path="/store/:slug/products" element={<StoreGuard><ProductList /></StoreGuard>} />
+            <Route path="/store/:slug/product/:productSlug" element={<StoreGuard><ProductDetail /></StoreGuard>} />
+            <Route path="/store/:slug/cart" element={<StoreGuard><CartPage /></StoreGuard>} />
+            <Route path="/store/:slug/checkout" element={<StoreGuard><CheckoutPage /></StoreGuard>} />
+            <Route path="/store/:slug/order-confirmation" element={<StoreGuard><OrderConfirmation /></StoreGuard>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
