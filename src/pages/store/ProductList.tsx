@@ -11,6 +11,7 @@ import { StoreHeader } from '@/components/storefront/StoreHeader';
 import { StoreFooter } from '@/components/storefront/StoreFooter';
 import { ProductCard } from '@/components/storefront/ProductCard';
 import { useCart } from '@/hooks/useCart';
+import { useStoreAuth } from '@/contexts/StoreAuthContext';
 import { toast } from 'sonner';
 import { Package, Search, SlidersHorizontal, MapPin } from 'lucide-react';
 
@@ -23,7 +24,8 @@ interface Tenant {
   phone: string | null;
 }
 
-interface Category { id: string; name: string; slug: string; }
+interface Category { id: string; name: string; slug: string; parent_id: string | null; }
+interface Brand { id: string; name: string; slug: string; }
 interface DeliveryZone { id: string; name: string; pincodes: string[]; }
 
 interface Product {
@@ -35,21 +37,26 @@ interface Product {
   images: string[];
   stock_qty: number;
   category: { name: string } | null;
+  brand: { name: string } | null;
 }
 
 export default function ProductList() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { customer } = useStoreAuth();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [selectedZone, setSelectedZone] = useState<DeliveryZone | null>(null);
   const [unavailableProductIds, setUnavailableProductIds] = useState<Set<string>>(new Set());
+  const [wishlistedIds, setWishlistedIds] = useState<Set<string>>(new Set());
   const [pincode, setPincode] = useState(searchParams.get('pincode') || '');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'all');
+  const [selectedBrand, setSelectedBrand] = useState(searchParams.get('brand') || 'all');
   const [sortBy, setSortBy] = useState('name');
   const [addingProduct, setAddingProduct] = useState<string | null>(null);
 
@@ -69,8 +76,12 @@ export default function ProductList() {
       if (data) {
         setTenant(data as Tenant);
         
-        const { data: cats } = await supabase.from('categories').select('id, name, slug').eq('tenant_id', data.id).eq('is_active', true);
-        setCategories(cats || []);
+        const [catsRes, brandsRes] = await Promise.all([
+          supabase.from('categories').select('id, name, slug, parent_id').eq('tenant_id', data.id).eq('is_active', true),
+          supabase.from('brands').select('id, name, slug').eq('tenant_id', data.id).eq('is_active', true)
+        ]);
+        setCategories(catsRes.data || []);
+        setBrands(brandsRes.data || []);
 
         // Fetch zones for grocery stores
         if (data.business_type === 'grocery') {
@@ -82,6 +93,20 @@ export default function ProductList() {
 
     fetchTenant();
   }, [slug]);
+
+  // Fetch wishlist for logged in customer
+  useEffect(() => {
+    const fetchWishlist = async () => {
+      if (!customer || !tenant) return;
+      const { data } = await supabase
+        .from('wishlists')
+        .select('product_id')
+        .eq('tenant_id', tenant.id)
+        .eq('customer_id', customer.id);
+      setWishlistedIds(new Set(data?.map(w => w.product_id) || []));
+    };
+    fetchWishlist();
+  }, [customer, tenant]);
 
   // Handle zone selection from pincode
   useEffect(() => {
@@ -119,13 +144,18 @@ export default function ProductList() {
       setLoading(true);
       let query = supabase
         .from('products')
-        .select('id, name, slug, price, compare_at_price, images, stock_qty, category:categories(name)')
+        .select('id, name, slug, price, compare_at_price, images, stock_qty, category:categories(name), brand:brands(name)')
         .eq('tenant_id', tenant.id)
         .eq('is_active', true);
 
       if (selectedCategory && selectedCategory !== 'all') {
         const cat = categories.find(c => c.slug === selectedCategory);
         if (cat) query = query.eq('category_id', cat.id);
+      }
+
+      if (selectedBrand && selectedBrand !== 'all') {
+        const brand = brands.find(b => b.slug === selectedBrand);
+        if (brand) query = query.eq('brand_id', brand.id);
       }
 
       if (searchQuery) query = query.ilike('name', `%${searchQuery}%`);
@@ -140,7 +170,7 @@ export default function ProductList() {
     };
 
     fetchProducts();
-  }, [tenant, selectedCategory, searchQuery, sortBy, categories]);
+  }, [tenant, selectedCategory, selectedBrand, searchQuery, sortBy, categories, brands]);
 
   const handleAddToCart = async (productId: string, price: number) => {
     setAddingProduct(productId);
@@ -148,6 +178,44 @@ export default function ProductList() {
     if (success) toast.success('Added to cart!');
     else toast.error('Failed to add to cart');
     setAddingProduct(null);
+  };
+
+  const handleToggleWishlist = async (productId: string) => {
+    if (!customer || !tenant) {
+      toast.error('Please sign in to add to wishlist');
+      return;
+    }
+
+    if (wishlistedIds.has(productId)) {
+      // Remove from wishlist
+      const { error } = await supabase
+        .from('wishlists')
+        .delete()
+        .eq('tenant_id', tenant.id)
+        .eq('customer_id', customer.id)
+        .eq('product_id', productId);
+      
+      if (!error) {
+        setWishlistedIds(prev => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
+        toast.success('Removed from wishlist');
+      }
+    } else {
+      // Add to wishlist
+      const { error } = await supabase.from('wishlists').insert({
+        tenant_id: tenant.id,
+        customer_id: customer.id,
+        product_id: productId
+      });
+      
+      if (!error) {
+        setWishlistedIds(prev => new Set(prev).add(productId));
+        toast.success('Added to wishlist');
+      }
+    }
   };
 
   const handleSearch = (query: string) => {
@@ -166,6 +234,14 @@ export default function ProductList() {
     setSearchParams(params);
   };
 
+  const handleBrandChange = (brand: string) => {
+    setSelectedBrand(brand);
+    const params = new URLSearchParams(searchParams);
+    if (brand && brand !== 'all') params.set('brand', brand);
+    else params.delete('brand');
+    setSearchParams(params);
+  };
+
   const handlePincodeChange = (newPincode: string) => {
     setPincode(newPincode);
     const params = new URLSearchParams(searchParams);
@@ -176,6 +252,9 @@ export default function ProductList() {
 
   // Filter out unavailable products for grocery stores with zone selected
   const filteredProducts = products.filter(p => !unavailableProductIds.has(p.id));
+
+  // Get parent categories for display
+  const parentCategories = categories.filter(c => !c.parent_id);
 
   if (!tenant) {
     return (
@@ -249,11 +328,25 @@ export default function ProductList() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(cat => (
+                {parentCategories.map(cat => (
                   <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
+
+            {brands.length > 0 && (
+              <Select value={selectedBrand} onValueChange={handleBrandChange}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Brand" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Brands</SelectItem>
+                  {brands.map(brand => (
+                    <SelectItem key={brand.id} value={brand.slug}>{brand.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="w-[160px]">
@@ -289,6 +382,8 @@ export default function ProductList() {
                 storeSlug={slug!}
                 onAddToCart={handleAddToCart}
                 isAdding={addingProduct === product.id}
+                isWishlisted={wishlistedIds.has(product.id)}
+                onToggleWishlist={customer ? handleToggleWishlist : undefined}
               />
             ))}
           </div>

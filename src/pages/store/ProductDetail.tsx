@@ -5,9 +5,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StoreHeader } from '@/components/storefront/StoreHeader';
 import { StoreFooter } from '@/components/storefront/StoreFooter';
 import { useCart } from '@/hooks/useCart';
+import { useStoreAuth } from '@/contexts/StoreAuthContext';
 import { toast } from 'sonner';
 import { 
   Package, 
@@ -16,7 +18,8 @@ import {
   Plus, 
   ChevronLeft,
   Check,
-  AlertCircle
+  AlertCircle,
+  Heart
 } from 'lucide-react';
 
 interface Tenant {
@@ -38,18 +41,41 @@ interface Product {
   sku: string | null;
   images: string[];
   stock_qty: number;
+  has_variants: boolean;
   category: { name: string } | null;
+  brand: { name: string } | null;
+}
+
+interface Variant {
+  id: string;
+  sku: string | null;
+  price: number;
+  compare_at_price: number | null;
+  stock_qty: number;
+  is_active: boolean;
+  attributes: { attribute_name: string; value: string }[];
+}
+
+interface AttributeOption {
+  name: string;
+  values: string[];
 }
 
 export default function ProductDetail() {
   const { slug, productSlug } = useParams<{ slug: string; productSlug: string }>();
+  const { customer } = useStoreAuth();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [attributeOptions, setAttributeOptions] = useState<AttributeOption[]>([]);
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
+  const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [adding, setAdding] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isWishlisted, setIsWishlisted] = useState(false);
 
   const { itemCount, addToCart } = useCart(slug || '', tenant?.id || null);
 
@@ -73,24 +99,148 @@ export default function ProductDetail() {
 
       const { data: productData } = await supabase
         .from('products')
-        .select('*, category:categories(name)')
+        .select('*, category:categories(name), brand:brands(name)')
         .eq('tenant_id', tenantData.id)
         .eq('slug', productSlug)
         .eq('is_active', true)
         .maybeSingle();
 
-      setProduct(productData as Product);
+      if (productData) {
+        setProduct(productData as Product);
+
+        // Fetch variants if product has variants
+        if (productData.has_variants) {
+          const { data: variantsData } = await supabase
+            .from('product_variants')
+            .select('id, sku, price, compare_at_price, stock_qty, is_active')
+            .eq('product_id', productData.id)
+            .eq('is_active', true);
+
+          if (variantsData && variantsData.length > 0) {
+            // Fetch variant attributes
+            const variantIds = variantsData.map(v => v.id);
+            const { data: variantAttrsData } = await supabase
+              .from('variant_attributes')
+              .select('variant_id, attribute:attributes(name), attribute_value:attribute_values(value)')
+              .in('variant_id', variantIds);
+
+            // Build variants with attributes
+            const variantsWithAttrs = variantsData.map(v => ({
+              ...v,
+              attributes: (variantAttrsData || [])
+                .filter(va => va.variant_id === v.id)
+                .map(va => ({
+                  attribute_name: (va.attribute as any)?.name || '',
+                  value: (va.attribute_value as any)?.value || ''
+                }))
+            }));
+
+            setVariants(variantsWithAttrs);
+
+            // Build attribute options
+            const attrMap: Record<string, Set<string>> = {};
+            variantsWithAttrs.forEach(v => {
+              v.attributes.forEach(a => {
+                if (!attrMap[a.attribute_name]) attrMap[a.attribute_name] = new Set();
+                attrMap[a.attribute_name].add(a.value);
+              });
+            });
+
+            const options = Object.entries(attrMap).map(([name, values]) => ({
+              name,
+              values: Array.from(values)
+            }));
+
+            setAttributeOptions(options);
+
+            // Auto-select first variant
+            if (options.length > 0) {
+              const initialSelection: Record<string, string> = {};
+              options.forEach(opt => {
+                initialSelection[opt.name] = opt.values[0];
+              });
+              setSelectedAttributes(initialSelection);
+            }
+          }
+        }
+      }
+
       setLoading(false);
     };
 
     fetchData();
   }, [slug, productSlug]);
 
+  // Find matching variant when attributes change
+  useEffect(() => {
+    if (!product?.has_variants || variants.length === 0) {
+      setSelectedVariant(null);
+      return;
+    }
+
+    const matchingVariant = variants.find(v => {
+      return v.attributes.every(a => selectedAttributes[a.attribute_name] === a.value);
+    });
+
+    setSelectedVariant(matchingVariant || null);
+  }, [selectedAttributes, variants, product?.has_variants]);
+
+  // Check wishlist status
+  useEffect(() => {
+    const checkWishlist = async () => {
+      if (!customer || !tenant || !product) return;
+      const { data } = await supabase
+        .from('wishlists')
+        .select('id')
+        .eq('tenant_id', tenant.id)
+        .eq('customer_id', customer.id)
+        .eq('product_id', product.id)
+        .maybeSingle();
+      setIsWishlisted(!!data);
+    };
+    checkWishlist();
+  }, [customer, tenant, product]);
+
+  const handleToggleWishlist = async () => {
+    if (!customer || !tenant || !product) {
+      toast.error('Please sign in to add to wishlist');
+      return;
+    }
+
+    if (isWishlisted) {
+      await supabase
+        .from('wishlists')
+        .delete()
+        .eq('tenant_id', tenant.id)
+        .eq('customer_id', customer.id)
+        .eq('product_id', product.id);
+      setIsWishlisted(false);
+      toast.success('Removed from wishlist');
+    } else {
+      await supabase.from('wishlists').insert({
+        tenant_id: tenant.id,
+        customer_id: customer.id,
+        product_id: product.id
+      });
+      setIsWishlisted(true);
+      toast.success('Added to wishlist');
+    }
+  };
+
   const handleAddToCart = async () => {
     if (!product) return;
     
+    const price = selectedVariant?.price ?? product.price;
+    const stockQty = selectedVariant?.stock_qty ?? product.stock_qty;
+
+    if (stockQty <= 0) {
+      toast.error('This item is out of stock');
+      return;
+    }
+    
     setAdding(true);
-    const success = await addToCart(product.id, product.price, quantity);
+    // TODO: Pass variant_id to addToCart when adding variant support to cart
+    const success = await addToCart(product.id, price, quantity);
     if (success) {
       toast.success(`Added ${quantity} item(s) to cart!`);
     } else {
@@ -99,12 +249,22 @@ export default function ProductDetail() {
     setAdding(false);
   };
 
-  const discount = product?.compare_at_price 
-    ? Math.round(((product.compare_at_price - product.price) / product.compare_at_price) * 100)
+  const getImageUrl = (img: string) => {
+    if (img.startsWith('http')) return img;
+    return supabase.storage.from('product-images').getPublicUrl(img).data.publicUrl;
+  };
+
+  // Use variant price/stock if selected, otherwise use product price/stock
+  const displayPrice = selectedVariant?.price ?? product?.price ?? 0;
+  const displayComparePrice = selectedVariant?.compare_at_price ?? product?.compare_at_price;
+  const displayStockQty = selectedVariant?.stock_qty ?? product?.stock_qty ?? 0;
+
+  const discount = displayComparePrice 
+    ? Math.round(((displayComparePrice - displayPrice) / displayComparePrice) * 100)
     : 0;
 
-  const isOutOfStock = product ? product.stock_qty <= 0 : false;
-  const isLowStock = product ? product.stock_qty > 0 && product.stock_qty <= 5 : false;
+  const isOutOfStock = displayStockQty <= 0;
+  const isLowStock = displayStockQty > 0 && displayStockQty <= 5;
 
   if (loading) {
     return (
@@ -156,10 +316,10 @@ export default function ProductDetail() {
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
           {/* Images */}
           <div className="space-y-4">
-            <div className="aspect-square rounded-xl bg-muted overflow-hidden">
+            <div className="aspect-square rounded-xl bg-muted overflow-hidden relative">
               {product.images && product.images.length > 0 ? (
                 <img 
-                  src={product.images[selectedImage]} 
+                  src={getImageUrl(product.images[selectedImage])} 
                   alt={product.name}
                   className="w-full h-full object-cover"
                 />
@@ -168,6 +328,14 @@ export default function ProductDetail() {
                   <Package className="w-24 h-24 text-muted-foreground/30" />
                 </div>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-4 right-4 bg-background/80 hover:bg-background"
+                onClick={handleToggleWishlist}
+              >
+                <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-destructive text-destructive' : ''}`} />
+              </Button>
             </div>
             
             {product.images && product.images.length > 1 && (
@@ -180,7 +348,7 @@ export default function ProductDetail() {
                       selectedImage === idx ? 'border-primary' : 'border-transparent'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={getImageUrl(img)} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -189,20 +357,23 @@ export default function ProductDetail() {
 
           {/* Details */}
           <div>
+            {product.brand && (
+              <Badge variant="outline" className="mb-2">{product.brand.name}</Badge>
+            )}
             {product.category && (
-              <Badge variant="secondary" className="mb-2">{product.category.name}</Badge>
+              <Badge variant="secondary" className="mb-2 ml-2">{product.category.name}</Badge>
             )}
             
             <h1 className="text-2xl md:text-3xl font-display font-bold mb-4">{product.name}</h1>
             
             <div className="flex items-baseline gap-3 mb-4">
               <span className="text-3xl font-display font-bold text-primary">
-                ₹{product.price.toFixed(2)}
+                ₹{displayPrice.toFixed(2)}
               </span>
-              {product.compare_at_price && (
+              {displayComparePrice && (
                 <>
                   <span className="text-lg text-muted-foreground line-through">
-                    ₹{product.compare_at_price.toFixed(2)}
+                    ₹{displayComparePrice.toFixed(2)}
                   </span>
                   <Badge className="bg-destructive">{discount}% OFF</Badge>
                 </>
@@ -219,7 +390,7 @@ export default function ProductDetail() {
               ) : isLowStock ? (
                 <div className="flex items-center gap-2 text-warning">
                   <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm font-medium">Only {product.stock_qty} left!</span>
+                  <span className="text-sm font-medium">Only {displayStockQty} left!</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 text-success">
@@ -229,12 +400,36 @@ export default function ProductDetail() {
               )}
             </div>
 
+            {/* Variant Selectors */}
+            {product.has_variants && attributeOptions.length > 0 && (
+              <div className="space-y-4 mb-6">
+                {attributeOptions.map(attr => (
+                  <div key={attr.name}>
+                    <label className="text-sm font-medium mb-2 block">{attr.name}</label>
+                    <Select
+                      value={selectedAttributes[attr.name] || ''}
+                      onValueChange={(value) => setSelectedAttributes(prev => ({ ...prev, [attr.name]: value }))}
+                    >
+                      <SelectTrigger className="w-full max-w-xs">
+                        <SelectValue placeholder={`Select ${attr.name}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {attr.values.map(value => (
+                          <SelectItem key={value} value={value}>{value}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {product.description && (
               <p className="text-muted-foreground mb-6">{product.description}</p>
             )}
 
-            {product.sku && (
-              <p className="text-sm text-muted-foreground mb-6">SKU: {product.sku}</p>
+            {(selectedVariant?.sku || product.sku) && (
+              <p className="text-sm text-muted-foreground mb-6">SKU: {selectedVariant?.sku || product.sku}</p>
             )}
 
             {/* Quantity & Add to Cart */}
@@ -252,8 +447,8 @@ export default function ProductDetail() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setQuantity(Math.min(product.stock_qty, quantity + 1))}
-                  disabled={isOutOfStock || quantity >= product.stock_qty}
+                  onClick={() => setQuantity(Math.min(displayStockQty, quantity + 1))}
+                  disabled={isOutOfStock || quantity >= displayStockQty}
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
@@ -262,7 +457,7 @@ export default function ProductDetail() {
               <Button 
                 size="lg" 
                 className="flex-1"
-                disabled={isOutOfStock || adding}
+                disabled={isOutOfStock || adding || (product.has_variants && !selectedVariant)}
                 onClick={handleAddToCart}
               >
                 <ShoppingCart className="w-5 h-5 mr-2" />
