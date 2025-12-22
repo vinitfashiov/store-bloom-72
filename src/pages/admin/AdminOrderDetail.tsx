@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { ArrowLeft, Truck, Package, Loader2, CheckCircle, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Truck, Package, Loader2, CheckCircle, ExternalLink, IndianRupee } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Order {
@@ -61,6 +61,7 @@ export default function AdminOrderDetail({ tenantId, disabled }: AdminOrderDetai
   const [shiprocketConfigured, setShiprocketConfigured] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [creatingShipment, setCreatingShipment] = useState(false);
+  const [updatingPayment, setUpdatingPayment] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -97,6 +98,28 @@ export default function AdminOrderDetail({ tenantId, disabled }: AdminOrderDetai
     
     toast.success(`Order ${newStatus}`);
     setOrder({ ...order, status: newStatus });
+  };
+
+  const toggleCodPaymentStatus = async () => {
+    if (!order || disabled || order.payment_method !== 'cod') return;
+    
+    setUpdatingPayment(true);
+    const newStatus = order.payment_status === 'paid' ? 'unpaid' : 'paid';
+    
+    const { error } = await supabase
+      .from('orders')
+      .update({ payment_status: newStatus })
+      .eq('id', order.id);
+    
+    if (error) { 
+      toast.error('Failed to update payment status'); 
+      setUpdatingPayment(false);
+      return; 
+    }
+    
+    toast.success(`Payment marked as ${newStatus}`);
+    setOrder({ ...order, payment_status: newStatus });
+    setUpdatingPayment(false);
   };
 
   const createShipment = async () => {
@@ -173,6 +196,8 @@ export default function AdminOrderDetail({ tenantId, disabled }: AdminOrderDetai
     !shipment &&
     ['confirmed', 'packed', 'shipped', 'delivered'].includes(order.status) &&
     (order.payment_status === 'paid' || order.payment_method === 'cod');
+
+  const isCod = order.payment_method === 'cod';
 
   return (
     <div className="space-y-6">
@@ -272,17 +297,39 @@ export default function AdminOrderDetail({ tenantId, disabled }: AdminOrderDetai
 
           <Card>
             <CardHeader><CardTitle>Payment</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Method</span>
                 <Badge variant="outline">{order.payment_method.toUpperCase()}</Badge>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Status</span>
                 <Badge className={order.payment_status === 'paid' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'}>
                   {order.payment_status.toUpperCase()}
                 </Badge>
               </div>
+              
+              {/* COD Payment Toggle */}
+              {isCod && (
+                <div className="pt-3 border-t">
+                  <Button
+                    variant={order.payment_status === 'paid' ? 'outline' : 'default'}
+                    size="sm"
+                    className="w-full"
+                    onClick={toggleCodPaymentStatus}
+                    disabled={disabled || updatingPayment}
+                  >
+                    {updatingPayment ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Updating...</>
+                    ) : order.payment_status === 'paid' ? (
+                      <><IndianRupee className="w-4 h-4 mr-2" /> Mark as Unpaid</>
+                    ) : (
+                      <><IndianRupee className="w-4 h-4 mr-2" /> Mark COD as Paid</>
+                    )}
+                  </Button>
+                </div>
+              )}
+
               {order.razorpay_payment_id && (
                 <div className="pt-2 text-xs text-muted-foreground">
                   <p>Razorpay ID: {order.razorpay_payment_id}</p>

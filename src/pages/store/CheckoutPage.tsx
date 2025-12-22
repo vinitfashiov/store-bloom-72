@@ -128,37 +128,61 @@ export default function CheckoutPage() {
   // Filter slots by zone
   const availableSlots = slots.filter(s => !s.zone_id || s.zone_id === selectedZone?.id);
 
-  const handleRazorpayPayment = async (orderId: string, orderNumber: string) => {
+  const handleRazorpayPayment = async (paymentIntentId: string, orderNumber: string, amount: number) => {
     try {
       const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
-        body: { store_slug: slug, order_id: orderId }
+        body: { store_slug: slug, payment_intent_id: paymentIntentId }
       });
       if (error || data?.error) throw new Error(data?.error || error?.message || 'Failed to create payment order');
-      const { key_id, razorpay_order_id, amount, currency } = data;
+      const { key_id, razorpay_order_id, currency } = data;
 
       const options = {
-        key: key_id, amount, currency,
+        key: key_id, 
+        amount: Math.round(amount * 100), 
+        currency,
         name: tenant?.store_name || 'Store',
         description: `Order ${orderNumber}`,
         order_id: razorpay_order_id,
         handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
             const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
-              body: { store_slug: slug, order_id: orderId, ...response }
+              body: { 
+                store_slug: slug, 
+                payment_intent_id: paymentIntentId, 
+                ...response 
+              }
             });
             if (verifyError || !verifyData?.success) throw new Error(verifyData?.error || 'Payment verification failed');
             await clearCart();
-            toast.success('Payment successful!');
-            navigate(`/store/${slug}/order-confirmation?order=${orderNumber}`);
-          } catch (err: any) { toast.error(err.message || 'Payment verification failed'); }
+            toast.success('Payment successful! Order created.');
+            navigate(`/store/${slug}/order-confirmation?order=${verifyData.order_number || orderNumber}`);
+          } catch (err: any) { 
+            toast.error(err.message || 'Payment verification failed'); 
+            setSubmitting(false);
+          }
         },
         prefill: { name: form.name, email: form.email, contact: form.phone },
         theme: { color: '#3399cc' },
-        modal: { ondismiss: () => { toast.error('Payment cancelled'); setSubmitting(false); } }
+        modal: { 
+          ondismiss: async () => { 
+            // Mark payment intent as cancelled
+            await supabase
+              .from('payment_intents')
+              .update({ status: 'cancelled' })
+              .eq('id', paymentIntentId);
+            toast.error('Payment cancelled. No order was created.'); 
+            setSubmitting(false); 
+          } 
+        }
       };
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (err: any) {
+      // Mark payment intent as failed
+      await supabase
+        .from('payment_intents')
+        .update({ status: 'failed' })
+        .eq('id', paymentIntentId);
       toast.error(err.message || 'Failed to initiate payment');
       setSubmitting(false);
     }
@@ -188,41 +212,82 @@ export default function CheckoutPage() {
     const orderNumber = `ORD-${Date.now()}`;
 
     try {
-      const { data: order, error: orderError } = await supabase.from('orders').insert({
-        tenant_id: tenant.id,
-        order_number: orderNumber,
-        customer_name: form.name,
-        customer_phone: form.phone,
-        customer_email: form.email || null,
-        shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
-        subtotal,
-        delivery_fee: deliveryFee,
-        total,
-        payment_method: paymentMethod,
-        status: 'pending',
-        payment_status: 'unpaid',
-        delivery_zone_id: selectedZone?.id || null,
-        delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
-        delivery_option: isGrocery ? deliveryOption : 'standard'
-      }).select().single();
-
-      if (orderError) throw orderError;
-
-      for (const item of cart.items) {
-        await supabase.from('order_items').insert({
-          tenant_id: tenant.id, order_id: order.id, product_id: item.product_id,
-          name: item.product?.name || 'Product', qty: item.qty,
-          unit_price: item.unit_price, line_total: item.unit_price * item.qty
-        });
-        const currentStock = item.product?.stock_qty || 0;
-        await supabase.from('products').update({ stock_qty: Math.max(0, currentStock - item.qty) }).eq('id', item.product_id);
-      }
-
-      await supabase.from('carts').update({ status: 'converted' }).eq('id', cart.id);
-
       if (paymentMethod === 'razorpay') {
-        await handleRazorpayPayment(order.id, orderNumber);
+        // For Razorpay: Create payment intent, NOT the order
+        const draftOrderData = {
+          order_number: orderNumber,
+          customer_name: form.name,
+          customer_phone: form.phone,
+          customer_email: form.email || null,
+          shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
+          subtotal,
+          delivery_fee: deliveryFee,
+          total,
+          delivery_zone_id: selectedZone?.id || null,
+          delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
+          delivery_option: isGrocery ? deliveryOption : 'standard',
+          items: cart.items.map(item => ({
+            product_id: item.product_id,
+            name: item.product?.name || 'Product',
+            qty: item.qty,
+            unit_price: item.unit_price,
+            stock_qty: item.product?.stock_qty || 0
+          }))
+        };
+
+        const { data: paymentIntent, error: piError } = await supabase
+          .from('payment_intents')
+          .insert({
+            tenant_id: tenant.id,
+            store_slug: slug,
+            cart_id: cart.id,
+            draft_order_data: draftOrderData,
+            amount: total,
+            currency: 'INR',
+            status: 'initiated'
+          })
+          .select()
+          .single();
+
+        if (piError || !paymentIntent) {
+          throw new Error('Failed to initiate payment');
+        }
+
+        // Open Razorpay
+        await handleRazorpayPayment(paymentIntent.id, orderNumber, total);
       } else {
+        // For COD: Create order directly
+        const { data: order, error: orderError } = await supabase.from('orders').insert({
+          tenant_id: tenant.id,
+          order_number: orderNumber,
+          customer_name: form.name,
+          customer_phone: form.phone,
+          customer_email: form.email || null,
+          shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
+          subtotal,
+          delivery_fee: deliveryFee,
+          total,
+          payment_method: paymentMethod,
+          status: 'pending',
+          payment_status: 'unpaid',
+          delivery_zone_id: selectedZone?.id || null,
+          delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
+          delivery_option: isGrocery ? deliveryOption : 'standard'
+        }).select().single();
+
+        if (orderError) throw orderError;
+
+        for (const item of cart.items) {
+          await supabase.from('order_items').insert({
+            tenant_id: tenant.id, order_id: order.id, product_id: item.product_id,
+            name: item.product?.name || 'Product', qty: item.qty,
+            unit_price: item.unit_price, line_total: item.unit_price * item.qty
+          });
+          const currentStock = item.product?.stock_qty || 0;
+          await supabase.from('products').update({ stock_qty: Math.max(0, currentStock - item.qty) }).eq('id', item.product_id);
+        }
+
+        await supabase.from('carts').update({ status: 'converted' }).eq('id', cart.id);
         await clearCart();
         toast.success('Order placed successfully!');
         navigate(`/store/${slug}/order-confirmation?order=${orderNumber}`);
@@ -370,31 +435,34 @@ export default function CheckoutPage() {
                   ))}
                 </div>
                 <div className="border-t pt-4 space-y-2">
-                  <div className="flex justify-between text-sm"><span>Subtotal</span><span>₹{subtotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span>Subtotal</span><span>₹{subtotal.toFixed(2)}</span></div>
                   {isGrocery && (
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between">
                       <span>Delivery</span>
-                      <span>
-                        {deliveryFee === 0 && deliverySettings?.delivery_fee > 0 ? (
-                          <span className="text-green-600">FREE</span>
-                        ) : (
-                          `₹${deliveryFee.toFixed(2)}`
-                        )}
-                      </span>
+                      <span>{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee.toFixed(2)}`}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-lg pt-2 border-t"><span>Total</span><span>₹{total.toFixed(2)}</span></div>
+                  <div className="flex justify-between font-bold text-lg border-t pt-2">
+                    <span>Total</span><span>₹{total.toFixed(2)}</span>
+                  </div>
                 </div>
-                <Button 
-                  type="submit" 
-                  className="w-full mt-4" 
-                  size="lg" 
-                  disabled={submitting || cart.items.length === 0 || !meetsMinOrder || (isGrocery && zones.length > 0 && !selectedZone)}
-                >
-                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</> : 'Place Order'}
-                </Button>
               </CardContent>
             </Card>
+
+            <Button 
+              type="submit" 
+              className="w-full" 
+              size="lg" 
+              disabled={submitting || cart.items.length === 0 || (isGrocery && (!meetsMinOrder || (zones.length > 0 && !selectedZone)))}
+            >
+              {submitting ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+              ) : paymentMethod === 'razorpay' ? (
+                `Pay ₹${total.toFixed(2)}`
+              ) : (
+                'Place Order (COD)'
+              )}
+            </Button>
           </div>
         </form>
       </div>

@@ -13,10 +13,10 @@ serve(async (req) => {
   }
 
   try {
-    const { store_slug, order_id, razorpay_order_id, razorpay_payment_id, razorpay_signature } = await req.json();
-    console.log('Verifying Razorpay payment:', { store_slug, order_id, razorpay_order_id, razorpay_payment_id });
+    const { store_slug, payment_intent_id, razorpay_order_id, razorpay_payment_id, razorpay_signature } = await req.json();
+    console.log('Verifying Razorpay payment:', { store_slug, payment_intent_id, razorpay_order_id, razorpay_payment_id });
 
-    if (!store_slug || !order_id || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    if (!store_slug || !payment_intent_id || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing required fields' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -69,6 +69,22 @@ serve(async (req) => {
       );
     }
 
+    // Fetch payment intent
+    const { data: paymentIntent, error: piError } = await supabase
+      .from('payment_intents')
+      .select('*')
+      .eq('id', payment_intent_id)
+      .eq('tenant_id', tenant.id)
+      .single();
+
+    if (piError || !paymentIntent) {
+      console.error('Payment intent not found:', piError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Payment intent not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Verify signature using HMAC SHA256
     const message = `${razorpay_order_id}|${razorpay_payment_id}`;
     const encoder = new TextEncoder();
@@ -92,37 +108,108 @@ serve(async (req) => {
     console.log('Signature verification:', { isValid, computed: signatureHex, received: razorpay_signature });
 
     if (isValid) {
-      // Update order as paid
-      const { error: updateError } = await supabase
-        .from('orders')
+      // Update payment intent as paid
+      await supabase
+        .from('payment_intents')
         .update({
-          payment_status: 'paid',
-          status: 'confirmed',
+          status: 'paid',
           razorpay_payment_id,
         })
-        .eq('id', order_id)
-        .eq('tenant_id', tenant.id);
+        .eq('id', payment_intent_id);
 
-      if (updateError) {
-        console.error('Failed to update order:', updateError);
+      // Create the real order from draft_order_data
+      const draftData = paymentIntent.draft_order_data as {
+        order_number: string;
+        customer_name: string;
+        customer_phone: string;
+        customer_email?: string;
+        shipping_address: Record<string, string>;
+        subtotal: number;
+        delivery_fee: number;
+        total: number;
+        delivery_zone_id?: string;
+        delivery_slot_id?: string;
+        delivery_option: string;
+        items: Array<{
+          product_id: string;
+          name: string;
+          qty: number;
+          unit_price: number;
+          stock_qty: number;
+        }>;
+      };
+
+      const { data: newOrder, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          tenant_id: tenant.id,
+          order_number: draftData.order_number,
+          customer_name: draftData.customer_name,
+          customer_phone: draftData.customer_phone,
+          customer_email: draftData.customer_email || null,
+          shipping_address: draftData.shipping_address,
+          subtotal: draftData.subtotal,
+          delivery_fee: draftData.delivery_fee,
+          total: draftData.total,
+          payment_method: 'razorpay',
+          status: 'confirmed',
+          payment_status: 'paid',
+          delivery_zone_id: draftData.delivery_zone_id || null,
+          delivery_slot_id: draftData.delivery_slot_id || null,
+          delivery_option: draftData.delivery_option,
+          razorpay_order_id,
+          razorpay_payment_id,
+        })
+        .select()
+        .single();
+
+      if (orderError || !newOrder) {
+        console.error('Failed to create order:', orderError);
         return new Response(
-          JSON.stringify({ success: false, error: 'Failed to update order' }),
+          JSON.stringify({ success: false, error: 'Failed to create order' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      console.log('Payment verified and order updated successfully');
+      console.log('Order created:', newOrder.id);
+
+      // Create order items and reduce stock
+      for (const item of draftData.items) {
+        await supabase.from('order_items').insert({
+          tenant_id: tenant.id,
+          order_id: newOrder.id,
+          product_id: item.product_id,
+          name: item.name,
+          qty: item.qty,
+          unit_price: item.unit_price,
+          line_total: item.unit_price * item.qty,
+        });
+
+        // Reduce stock
+        const newStock = Math.max(0, (item.stock_qty || 0) - item.qty);
+        await supabase
+          .from('products')
+          .update({ stock_qty: newStock })
+          .eq('id', item.product_id);
+      }
+
+      // Mark cart as converted
+      await supabase
+        .from('carts')
+        .update({ status: 'converted' })
+        .eq('id', paymentIntent.cart_id);
+
+      console.log('Payment verified and order created successfully');
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({ success: true, order_number: draftData.order_number }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      // Mark payment as failed
+      // Mark payment intent as failed
       await supabase
-        .from('orders')
-        .update({ payment_status: 'failed' })
-        .eq('id', order_id)
-        .eq('tenant_id', tenant.id);
+        .from('payment_intents')
+        .update({ status: 'failed' })
+        .eq('id', payment_intent_id);
 
       console.error('Invalid signature');
       return new Response(

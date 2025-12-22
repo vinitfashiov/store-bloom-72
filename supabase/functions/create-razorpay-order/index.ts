@@ -12,12 +12,12 @@ serve(async (req) => {
   }
 
   try {
-    const { store_slug, order_id } = await req.json();
-    console.log('Creating Razorpay order for:', { store_slug, order_id });
+    const { store_slug, payment_intent_id } = await req.json();
+    console.log('Creating Razorpay order for payment intent:', { store_slug, payment_intent_id });
 
-    if (!store_slug || !order_id) {
+    if (!store_slug || !payment_intent_id) {
       return new Response(
-        JSON.stringify({ error: 'Missing store_slug or order_id' }),
+        JSON.stringify({ error: 'Missing store_slug or payment_intent_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -69,25 +69,35 @@ serve(async (req) => {
       );
     }
 
-    // Fetch the order
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('id, order_number, total, tenant_id')
-      .eq('id', order_id)
+    // Fetch the payment intent
+    const { data: paymentIntent, error: piError } = await supabase
+      .from('payment_intents')
+      .select('id, amount, tenant_id, status, draft_order_data')
+      .eq('id', payment_intent_id)
       .eq('tenant_id', tenant.id)
       .single();
 
-    if (orderError || !order) {
-      console.error('Order not found:', orderError);
+    if (piError || !paymentIntent) {
+      console.error('Payment intent not found:', piError);
       return new Response(
-        JSON.stringify({ error: 'Order not found' }),
+        JSON.stringify({ error: 'Payment intent not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    if (paymentIntent.status !== 'initiated') {
+      console.error('Payment intent already processed:', paymentIntent.status);
+      return new Response(
+        JSON.stringify({ error: `Payment intent already ${paymentIntent.status}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Create Razorpay order
-    const amount = Math.round(order.total * 100); // Convert to paise
+    const amount = Math.round(paymentIntent.amount * 100); // Convert to paise
     const razorpayAuth = btoa(`${integration.razorpay_key_id}:${integration.razorpay_key_secret}`);
+    const draftData = paymentIntent.draft_order_data as { order_number?: string };
+    const receipt = draftData?.order_number || `PI-${payment_intent_id.substring(0, 8)}`;
 
     const razorpayResponse = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
@@ -98,7 +108,7 @@ serve(async (req) => {
       body: JSON.stringify({
         amount,
         currency: 'INR',
-        receipt: order.order_number,
+        receipt,
       }),
     });
 
@@ -114,14 +124,17 @@ serve(async (req) => {
     const razorpayOrder = await razorpayResponse.json();
     console.log('Razorpay order created:', razorpayOrder.id);
 
-    // Save razorpay_order_id to order
+    // Update payment intent with razorpay_order_id and status
     const { error: updateError } = await supabase
-      .from('orders')
-      .update({ razorpay_order_id: razorpayOrder.id })
-      .eq('id', order_id);
+      .from('payment_intents')
+      .update({ 
+        razorpay_order_id: razorpayOrder.id,
+        status: 'razorpay_order_created'
+      })
+      .eq('id', payment_intent_id);
 
     if (updateError) {
-      console.error('Failed to update order:', updateError);
+      console.error('Failed to update payment intent:', updateError);
     }
 
     return new Response(
