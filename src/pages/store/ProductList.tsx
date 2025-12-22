@@ -533,6 +533,7 @@ export default function ProductList() {
 
       <StoreFooter
         storeName={tenant.store_name}
+        storeSlug={tenant.store_slug}
         address={tenant.address}
         phone={tenant.phone}
       />

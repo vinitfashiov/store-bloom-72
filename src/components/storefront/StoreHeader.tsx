@@ -19,6 +19,7 @@ interface StoreHeaderProps {
   cartCount: number;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  logoPath?: string | null;
 }
 
 export function StoreHeader({
@@ -27,7 +28,8 @@ export function StoreHeader({
   businessType,
   cartCount,
   searchQuery,
-  onSearchChange
+  onSearchChange,
+  logoPath
 }: StoreHeaderProps) {
   const { customer, signOut } = useStoreAuth();
 
@@ -40,9 +42,17 @@ export function StoreHeader({
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between gap-4">
           <Link to={`/store/${storeSlug}`} className="flex items-center gap-3 shrink-0">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
-              <Store className="w-5 h-5 text-primary-foreground" />
-            </div>
+            {logoPath ? (
+              <img 
+                src={logoPath} 
+                alt={storeName}
+                className="w-10 h-10 rounded-xl object-contain"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
+                <Store className="w-5 h-5 text-primary-foreground" />
+              </div>
+            )}
             <div className="hidden sm:block">
               <h1 className="text-lg font-display font-bold text-foreground">{storeName}</h1>
               <Badge variant="secondary" className="text-xs">

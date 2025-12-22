@@ -470,6 +470,7 @@ export default function ProductDetail() {
 
       <StoreFooter
         storeName={tenant.store_name}
+        storeSlug={tenant.store_slug}
         address={tenant.address}
         phone={tenant.phone}
       />

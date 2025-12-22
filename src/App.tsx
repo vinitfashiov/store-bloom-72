@@ -21,6 +21,7 @@ import StoreOrders from "./pages/store/StoreOrders";
 import StoreOrderDetail from "./pages/store/StoreOrderDetail";
 import StoreAddresses from "./pages/store/StoreAddresses";
 import StoreWishlist from "./pages/store/StoreWishlist";
+import StorePageView from "./pages/store/StorePageView";
 import StoreGuard from "./components/storefront/StoreGuard";
 import NotFound from "./pages/NotFound";
 
@@ -127,6 +128,7 @@ const App = () => (
             <Route path="/store/:slug/account/orders/:orderId" element={<StoreOrderDetailWrapper />} />
             <Route path="/store/:slug/account/addresses" element={<StoreAddressesWrapper />} />
             <Route path="/store/:slug/account/wishlist" element={<StoreGuard><StoreWishlist /></StoreGuard>} />
+            <Route path="/store/:slug/page/:pageSlug" element={<StoreGuard><StorePageView /></StoreGuard>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
