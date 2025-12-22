@@ -142,7 +142,7 @@ export default function CartPage() {
         )}
       </main>
 
-      <StoreFooter storeName={tenant.store_name} address={tenant.address} phone={tenant.phone} />
+      <StoreFooter storeName={tenant.store_name} storeSlug={tenant.store_slug} address={tenant.address} phone={tenant.phone} />
     </div>
   );
 }

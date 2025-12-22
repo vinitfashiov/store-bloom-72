@@ -15,7 +15,9 @@ import {
   Truck,
   Shield,
   Clock,
-  Store
+  Store,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface Tenant {
@@ -28,6 +30,25 @@ interface Tenant {
   is_active: boolean;
   address: string | null;
   phone: string | null;
+}
+
+interface StoreSettings {
+  logo_path: string | null;
+  favicon_path: string | null;
+  website_title: string | null;
+  website_description: string | null;
+  store_email: string | null;
+  store_phone: string | null;
+  store_address: string | null;
+}
+
+interface Banner {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  image_path: string;
+  cta_text: string | null;
+  cta_url: string | null;
 }
 
 interface Category {
@@ -53,6 +74,9 @@ interface Product {
 export default function StoreHome() {
   const { slug } = useParams<{ slug: string }>();
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [currentBanner, setCurrentBanner] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +118,27 @@ export default function StoreHome() {
       }
 
       setTenant(tenantData as Tenant);
+
+      // Fetch store settings
+      const { data: settingsData } = await supabase
+        .from('store_settings')
+        .select('*')
+        .eq('tenant_id', tenantData.id)
+        .maybeSingle();
+
+      if (settingsData) {
+        setStoreSettings(settingsData);
+      }
+
+      // Fetch active banners
+      const { data: bannersData } = await supabase
+        .from('store_banners')
+        .select('id, title, subtitle, image_path, cta_text, cta_url')
+        .eq('tenant_id', tenantData.id)
+        .eq('is_active', true)
+        .order('position', { ascending: true });
+
+      setBanners(bannersData || []);
 
       // Fetch categories
       const { data: cats } = await supabase
@@ -137,6 +182,15 @@ export default function StoreHome() {
     fetchData();
   }, [slug]);
 
+  // Auto-rotate banners
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentBanner((prev) => (prev + 1) % banners.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [banners.length]);
+
   const handleAddToCart = async (productId: string, price: number) => {
     setAddingProduct(productId);
     const success = await addToCart(productId, price);
@@ -147,6 +201,9 @@ export default function StoreHome() {
     }
     setAddingProduct(null);
   };
+
+  const nextBanner = () => setCurrentBanner((prev) => (prev + 1) % banners.length);
+  const prevBanner = () => setCurrentBanner((prev) => (prev - 1 + banners.length) % banners.length);
 
   if (loading) {
     return (
@@ -197,28 +254,103 @@ export default function StoreHome() {
         cartCount={itemCount}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        logoPath={storeSettings?.logo_path}
       />
 
-      {/* Hero Section */}
-      <section className="gradient-hero py-16 md:py-20 px-4">
-        <div className="container mx-auto text-center">
-          <h2 className="text-3xl md:text-5xl font-display font-bold text-foreground mb-4 animate-fade-in">
-            Welcome to {tenant.store_name}
-          </h2>
-          <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto animate-slide-up">
-            {tenant.business_type === 'grocery' 
-              ? 'Fresh groceries and essentials delivered to your door'
-              : 'Discover amazing products at great prices'
-            }
-          </p>
-          <Link to={`/store/${slug}/products`}>
-            <Button size="lg" className="shadow-glow animate-scale-in">
-              Start Shopping
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-          </Link>
-        </div>
-      </section>
+      {/* Hero Section with Banners */}
+      {banners.length > 0 ? (
+        <section className="relative overflow-hidden">
+          <div className="relative">
+            {banners.map((banner, index) => (
+              <div
+                key={banner.id}
+                className={`transition-opacity duration-500 ${index === currentBanner ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
+              >
+                <div className="relative h-[300px] md:h-[400px] lg:h-[500px]">
+                  <img
+                    src={banner.image_path}
+                    alt={banner.title}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/50 to-transparent" />
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="container mx-auto px-4">
+                      <div className="max-w-lg">
+                        <h2 className="text-3xl md:text-5xl font-display font-bold text-foreground mb-4 animate-fade-in">
+                          {banner.title}
+                        </h2>
+                        {banner.subtitle && (
+                          <p className="text-lg md:text-xl text-muted-foreground mb-6 animate-slide-up">
+                            {banner.subtitle}
+                          </p>
+                        )}
+                        {banner.cta_text && banner.cta_url && (
+                          <Link to={banner.cta_url.startsWith('/') ? `/store/${slug}${banner.cta_url}` : banner.cta_url}>
+                            <Button size="lg" className="shadow-glow animate-scale-in">
+                              {banner.cta_text}
+                              <ArrowRight className="w-5 h-5 ml-2" />
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {banners.length > 1 && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background"
+                onClick={prevBanner}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/80 hover:bg-background"
+                onClick={nextBanner}
+              >
+                <ChevronRight className="w-5 h-5" />
+              </Button>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                {banners.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentBanner(index)}
+                    className={`w-2 h-2 rounded-full transition-colors ${index === currentBanner ? 'bg-primary' : 'bg-primary/30'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      ) : (
+        <section className="gradient-hero py-16 md:py-20 px-4">
+          <div className="container mx-auto text-center">
+            <h2 className="text-3xl md:text-5xl font-display font-bold text-foreground mb-4 animate-fade-in">
+              Welcome to {tenant.store_name}
+            </h2>
+            <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto animate-slide-up">
+              {storeSettings?.website_description || (tenant.business_type === 'grocery' 
+                ? 'Fresh groceries and essentials delivered to your door'
+                : 'Discover amazing products at great prices'
+              )}
+            </p>
+            <Link to={`/store/${slug}/products`}>
+              <Button size="lg" className="shadow-glow animate-scale-in">
+                Start Shopping
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Features */}
       <section className="py-12 px-4">
@@ -329,8 +461,10 @@ export default function StoreHome() {
 
       <StoreFooter
         storeName={tenant.store_name}
-        address={tenant.address}
-        phone={tenant.phone}
+        storeSlug={tenant.store_slug}
+        address={storeSettings?.store_address || tenant.address}
+        phone={storeSettings?.store_phone || tenant.phone}
+        email={storeSettings?.store_email}
       />
     </div>
   );

@@ -5,16 +5,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Tag } from 'lucide-react';
+import { Plus, Pencil, Trash2, Tag, Upload, Loader2, Image } from 'lucide-react';
 
 interface Brand {
   id: string;
   name: string;
   slug: string;
+  logo_path: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -29,7 +30,8 @@ export default function AdminBrands({ tenantId, disabled }: AdminBrandsProps) {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
-  const [form, setForm] = useState({ name: '', slug: '', is_active: true });
+  const [form, setForm] = useState({ name: '', slug: '', logo_path: '' as string | null, is_active: true });
+  const [uploading, setUploading] = useState(false);
 
   const fetchBrands = async () => {
     const { data } = await supabase
@@ -49,11 +51,40 @@ export default function AdminBrands({ tenantId, disabled }: AdminBrandsProps) {
     setForm({ ...form, name, slug: editingBrand ? form.slug : generateSlug(name) });
   };
 
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${tenantId}/brands/brand-${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('store-assets')
+      .upload(fileName, file, { upsert: true });
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      toast.error('Failed to upload logo');
+    } else {
+      const { data: { publicUrl } } = supabase.storage
+        .from('store-assets')
+        .getPublicUrl(fileName);
+
+      setForm(prev => ({ ...prev, logo_path: publicUrl }));
+      toast.success('Logo uploaded');
+    }
+    setUploading(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (disabled) return;
 
-    const brandData = { tenant_id: tenantId, name: form.name, slug: form.slug, is_active: form.is_active };
+    const brandData = { 
+      tenant_id: tenantId, 
+      name: form.name, 
+      slug: form.slug, 
+      logo_path: form.logo_path || null,
+      is_active: form.is_active 
+    };
 
     if (editingBrand) {
       const { error } = await supabase.from('brands').update(brandData).eq('id', editingBrand.id);
@@ -72,12 +103,12 @@ export default function AdminBrands({ tenantId, disabled }: AdminBrandsProps) {
 
   const resetForm = () => {
     setEditingBrand(null);
-    setForm({ name: '', slug: '', is_active: true });
+    setForm({ name: '', slug: '', logo_path: null, is_active: true });
   };
 
   const handleEdit = (brand: Brand) => {
     setEditingBrand(brand);
-    setForm({ name: brand.name, slug: brand.slug, is_active: brand.is_active });
+    setForm({ name: brand.name, slug: brand.slug, logo_path: brand.logo_path, is_active: brand.is_active });
     setDialogOpen(true);
   };
 
@@ -96,7 +127,7 @@ export default function AdminBrands({ tenantId, disabled }: AdminBrandsProps) {
           <h1 className="text-2xl font-display font-bold">Brands</h1>
           <p className="text-muted-foreground">Manage product brands</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) resetForm(); setDialogOpen(open); }}>
           <DialogTrigger asChild>
             <Button onClick={resetForm} disabled={disabled}><Plus className="w-4 h-4 mr-2" /> Add Brand</Button>
           </DialogTrigger>
@@ -105,13 +136,68 @@ export default function AdminBrands({ tenantId, disabled }: AdminBrandsProps) {
               <DialogTitle>{editingBrand ? 'Edit Brand' : 'Add Brand'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Logo Upload */}
+              <div className="space-y-2">
+                <Label>Brand Logo</Label>
+                <div className="flex items-center gap-4">
+                  {form.logo_path ? (
+                    <img 
+                      src={form.logo_path} 
+                      alt="Logo" 
+                      className="w-16 h-16 object-contain rounded-lg border bg-muted"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 border-2 border-dashed rounded-lg flex items-center justify-center bg-muted/50">
+                      <Image className="w-6 h-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      id="brand-logo-upload"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileUpload(file);
+                      }}
+                      disabled={uploading}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => document.getElementById('brand-logo-upload')?.click()}
+                      disabled={uploading}
+                    >
+                      {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                      {form.logo_path ? 'Change Logo' : 'Upload Logo'}
+                    </Button>
+                    {form.logo_path && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="ml-2 text-destructive"
+                        onClick={() => setForm(prev => ({ ...prev, logo_path: null }))}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div><Label>Name *</Label><Input value={form.name} onChange={e => handleNameChange(e.target.value)} required /></div>
               <div><Label>Slug *</Label><Input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} required /></div>
               <div className="flex items-center gap-2">
                 <Switch checked={form.is_active} onCheckedChange={v => setForm({ ...form, is_active: v })} />
                 <Label>Active</Label>
               </div>
-              <Button type="submit" className="w-full" disabled={disabled}>{editingBrand ? 'Update' : 'Create'} Brand</Button>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => { resetForm(); setDialogOpen(false); }}>Cancel</Button>
+                <Button type="submit" disabled={disabled}>{editingBrand ? 'Update' : 'Create'} Brand</Button>
+              </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
@@ -132,6 +218,7 @@ export default function AdminBrands({ tenantId, disabled }: AdminBrandsProps) {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Logo</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Slug</TableHead>
                   <TableHead>Status</TableHead>
@@ -141,6 +228,19 @@ export default function AdminBrands({ tenantId, disabled }: AdminBrandsProps) {
               <TableBody>
                 {brands.map(brand => (
                   <TableRow key={brand.id}>
+                    <TableCell>
+                      {brand.logo_path ? (
+                        <img 
+                          src={brand.logo_path} 
+                          alt={brand.name}
+                          className="w-10 h-10 object-contain rounded border bg-muted"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded border bg-muted flex items-center justify-center">
+                          <Tag className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{brand.name}</TableCell>
                     <TableCell className="text-muted-foreground">{brand.slug}</TableCell>
                     <TableCell>
