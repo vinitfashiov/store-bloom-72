@@ -6,6 +6,10 @@ import { toast } from 'sonner';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminProducts from './admin/AdminProducts';
 import AdminCategories from './admin/AdminCategories';
+import AdminBrands from './admin/AdminBrands';
+import AdminAttributes from './admin/AdminAttributes';
+import AdminCoupons from './admin/AdminCoupons';
+import AdminCustomers from './admin/AdminCustomers';
 import AdminOrders from './admin/AdminOrders';
 import AdminOrderDetail from './admin/AdminOrderDetail';
 import AdminSettings from './admin/AdminSettings';
@@ -77,6 +81,10 @@ export default function Dashboard() {
         <Route index element={<AdminDashboard tenant={tenant} isTrialExpired={isTrialExpired} />} />
         <Route path="products" element={<AdminProducts tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="categories" element={<AdminCategories tenantId={tenant.id} disabled={isTrialExpired} />} />
+        <Route path="brands" element={<AdminBrands tenantId={tenant.id} disabled={isTrialExpired} />} />
+        <Route path="attributes" element={<AdminAttributes tenantId={tenant.id} disabled={isTrialExpired} />} />
+        <Route path="coupons" element={<AdminCoupons tenantId={tenant.id} disabled={isTrialExpired} />} />
+        <Route path="customers" element={<AdminCustomers tenantId={tenant.id} />} />
         <Route path="orders" element={<AdminOrders tenantId={tenant.id} />} />
         <Route path="orders/:orderId" element={<AdminOrderDetail tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="payment-intents" element={<AdminPaymentIntents tenantId={tenant.id} />} />

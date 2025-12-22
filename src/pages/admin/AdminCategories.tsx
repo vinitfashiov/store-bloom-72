@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, FolderTree } from 'lucide-react';
+import { Plus, Pencil, Trash2, FolderTree, ChevronRight } from 'lucide-react';
 
 interface Category {
   id: string;
   name: string;
   slug: string;
   is_active: boolean;
+  parent_id: string | null;
   created_at: string;
 }
 
@@ -29,14 +31,15 @@ export default function AdminCategories({ tenantId, disabled }: AdminCategoriesP
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [form, setForm] = useState({ name: '', slug: '', is_active: true });
+  const [form, setForm] = useState({ name: '', slug: '', is_active: true, parent_id: '' });
 
   const fetchCategories = async () => {
     const { data } = await supabase
       .from('categories')
       .select('*')
       .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
+      .order('parent_id', { ascending: true, nullsFirst: true })
+      .order('name', { ascending: true });
     setCategories(data || []);
     setLoading(false);
   };
@@ -55,7 +58,13 @@ export default function AdminCategories({ tenantId, disabled }: AdminCategoriesP
     e.preventDefault();
     if (disabled) return;
 
-    const categoryData = { tenant_id: tenantId, name: form.name, slug: form.slug, is_active: form.is_active };
+    const categoryData = { 
+      tenant_id: tenantId, 
+      name: form.name, 
+      slug: form.slug, 
+      is_active: form.is_active,
+      parent_id: form.parent_id || null
+    };
 
     if (editingCategory) {
       const { error } = await supabase.from('categories').update(categoryData).eq('id', editingCategory.id);
@@ -69,13 +78,18 @@ export default function AdminCategories({ tenantId, disabled }: AdminCategoriesP
 
     setDialogOpen(false);
     setEditingCategory(null);
-    setForm({ name: '', slug: '', is_active: true });
+    setForm({ name: '', slug: '', is_active: true, parent_id: '' });
     fetchCategories();
   };
 
   const handleEdit = (category: Category) => {
     setEditingCategory(category);
-    setForm({ name: category.name, slug: category.slug, is_active: category.is_active });
+    setForm({ 
+      name: category.name, 
+      slug: category.slug, 
+      is_active: category.is_active,
+      parent_id: category.parent_id || ''
+    });
     setDialogOpen(true);
   };
 
@@ -89,16 +103,25 @@ export default function AdminCategories({ tenantId, disabled }: AdminCategoriesP
 
   const openCreateDialog = () => {
     setEditingCategory(null);
-    setForm({ name: '', slug: '', is_active: true });
+    setForm({ name: '', slug: '', is_active: true, parent_id: '' });
     setDialogOpen(true);
   };
+
+  // Get parent categories (those without parent_id)
+  const parentCategories = categories.filter(c => !c.parent_id);
+  
+  // Get subcategories for a parent
+  const getSubcategories = (parentId: string) => categories.filter(c => c.parent_id === parentId);
+
+  // For dropdown: only show parent categories as options
+  const parentOptions = categories.filter(c => !c.parent_id && c.id !== editingCategory?.id);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold">Categories</h1>
-          <p className="text-muted-foreground">Organize your products</p>
+          <p className="text-muted-foreground">Organize your products with categories and subcategories</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -112,12 +135,29 @@ export default function AdminCategories({ tenantId, disabled }: AdminCategoriesP
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label>Name</Label>
+                <Label>Name *</Label>
                 <Input value={form.name} onChange={e => handleNameChange(e.target.value)} required />
               </div>
               <div>
-                <Label>Slug</Label>
+                <Label>Slug *</Label>
                 <Input value={form.slug} onChange={e => setForm({ ...form, slug: e.target.value })} required />
+              </div>
+              <div>
+                <Label>Parent Category</Label>
+                <Select value={form.parent_id} onValueChange={v => setForm({ ...form, parent_id: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="None (top-level category)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None (top-level category)</SelectItem>
+                    {parentOptions.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Leave empty for a main category, or select a parent to create a subcategory
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Switch checked={form.is_active} onCheckedChange={v => setForm({ ...form, is_active: v })} />
@@ -148,29 +188,58 @@ export default function AdminCategories({ tenantId, disabled }: AdminCategoriesP
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Slug</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories.map(cat => (
-                  <TableRow key={cat.id}>
-                    <TableCell className="font-medium">{cat.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{cat.slug}</TableCell>
-                    <TableCell>
-                      <Badge variant={cat.is_active ? 'default' : 'secondary'}>
-                        {cat.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(cat)} disabled={disabled}>
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} disabled={disabled}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                {parentCategories.map(cat => (
+                  <>
+                    <TableRow key={cat.id}>
+                      <TableCell className="font-medium">{cat.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{cat.slug}</TableCell>
+                      <TableCell><Badge variant="outline">Main</Badge></TableCell>
+                      <TableCell>
+                        <Badge variant={cat.is_active ? 'default' : 'secondary'}>
+                          {cat.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(cat)} disabled={disabled}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} disabled={disabled}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {getSubcategories(cat.id).map(sub => (
+                      <TableRow key={sub.id} className="bg-muted/30">
+                        <TableCell className="font-medium pl-8">
+                          <span className="flex items-center gap-2">
+                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                            {sub.name}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{sub.slug}</TableCell>
+                        <TableCell><Badge variant="secondary">Sub</Badge></TableCell>
+                        <TableCell>
+                          <Badge variant={sub.is_active ? 'default' : 'secondary'}>
+                            {sub.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(sub)} disabled={disabled}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(sub.id)} disabled={disabled}>
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
                 ))}
               </TableBody>
             </Table>
