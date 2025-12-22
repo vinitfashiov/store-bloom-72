@@ -8,9 +8,15 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useCart } from '@/hooks/useCart';
 import { toast } from 'sonner';
-import { CreditCard, Truck } from 'lucide-react';
+import { CreditCard, Truck, Loader2 } from 'lucide-react';
 
 interface Tenant { id: string; store_name: string; store_slug: string; business_type: 'ecommerce' | 'grocery'; }
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 export default function CheckoutPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -18,6 +24,7 @@ export default function CheckoutPage() {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [submitting, setSubmitting] = useState(false);
+  const [razorpayConfigured, setRazorpayConfigured] = useState<boolean | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', email: '', line1: '', line2: '', city: '', state: '', pincode: '' });
 
   const { cart, getSubtotal, clearCart } = useCart(slug || '', tenant?.id || null);
@@ -26,10 +33,95 @@ export default function CheckoutPage() {
     const fetchTenant = async () => {
       if (!slug) return;
       const { data } = await supabase.from('tenants').select('id, store_name, store_slug, business_type').eq('store_slug', slug).eq('is_active', true).maybeSingle();
-      if (data) setTenant(data as Tenant);
+      if (data) {
+        setTenant(data as Tenant);
+        // Check if Razorpay is configured
+        const { data: integration } = await supabase.from('tenant_integrations').select('razorpay_key_id').eq('tenant_id', data.id).maybeSingle();
+        setRazorpayConfigured(!!integration?.razorpay_key_id);
+      }
     };
     fetchTenant();
   }, [slug]);
+
+  // Load Razorpay script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  const handleRazorpayPayment = async (orderId: string, orderNumber: string) => {
+    try {
+      // Call edge function to create Razorpay order
+      const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+        body: { store_slug: slug, order_id: orderId }
+      });
+
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || 'Failed to create payment order');
+      }
+
+      const { key_id, razorpay_order_id, amount, currency } = data;
+
+      // Open Razorpay checkout
+      const options = {
+        key: key_id,
+        amount,
+        currency,
+        name: tenant?.store_name || 'Store',
+        description: `Order ${orderNumber}`,
+        order_id: razorpay_order_id,
+        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+          try {
+            // Verify payment
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-razorpay-payment', {
+              body: {
+                store_slug: slug,
+                order_id: orderId,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              }
+            });
+
+            if (verifyError || !verifyData?.success) {
+              throw new Error(verifyData?.error || 'Payment verification failed');
+            }
+
+            await clearCart();
+            toast.success('Payment successful!');
+            navigate(`/store/${slug}/order-confirmation?order=${orderNumber}`);
+          } catch (err: any) {
+            toast.error(err.message || 'Payment verification failed');
+          }
+        },
+        prefill: {
+          name: form.name,
+          email: form.email,
+          contact: form.phone
+        },
+        theme: {
+          color: '#3399cc'
+        },
+        modal: {
+          ondismiss: () => {
+            toast.error('Payment cancelled');
+            setSubmitting(false);
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to initiate payment');
+      setSubmitting(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,7 +144,7 @@ export default function CheckoutPage() {
         total: subtotal,
         payment_method: paymentMethod,
         status: 'pending',
-        payment_status: paymentMethod === 'cod' ? 'unpaid' : 'unpaid'
+        payment_status: 'unpaid'
       }).select().single();
 
       if (orderError) throw orderError;
@@ -76,14 +168,21 @@ export default function CheckoutPage() {
 
       // Mark cart as converted
       await supabase.from('carts').update({ status: 'converted' }).eq('id', cart.id);
-      await clearCart();
 
-      toast.success('Order placed successfully!');
-      navigate(`/store/${slug}/order-confirmation?order=${orderNumber}`);
-    } catch (error) {
-      toast.error('Failed to place order');
+      if (paymentMethod === 'razorpay') {
+        // Handle Razorpay payment
+        await handleRazorpayPayment(order.id, orderNumber);
+      } else {
+        // COD - complete order directly
+        await clearCart();
+        toast.success('Order placed successfully!');
+        navigate(`/store/${slug}/order-confirmation?order=${orderNumber}`);
+        setSubmitting(false);
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to place order');
+      setSubmitting(false);
     }
-    setSubmitting(false);
   };
 
   if (!tenant || !cart) return null;
@@ -122,8 +221,19 @@ export default function CheckoutPage() {
               <CardHeader><CardTitle>Payment Method</CardTitle></CardHeader>
               <CardContent>
                 <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg"><RadioGroupItem value="cod" id="cod" /><Label htmlFor="cod" className="flex items-center gap-2 cursor-pointer"><Truck className="w-4 h-4" /> Cash on Delivery</Label></div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg mt-2"><RadioGroupItem value="razorpay" id="razorpay" /><Label htmlFor="razorpay" className="flex items-center gap-2 cursor-pointer"><CreditCard className="w-4 h-4" /> Pay Online (Razorpay)</Label></div>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg">
+                    <RadioGroupItem value="cod" id="cod" />
+                    <Label htmlFor="cod" className="flex items-center gap-2 cursor-pointer">
+                      <Truck className="w-4 h-4" /> Cash on Delivery
+                    </Label>
+                  </div>
+                  <div className={`flex items-center space-x-2 p-3 border rounded-lg mt-2 ${!razorpayConfigured ? 'opacity-50' : ''}`}>
+                    <RadioGroupItem value="razorpay" id="razorpay" disabled={!razorpayConfigured} />
+                    <Label htmlFor="razorpay" className="flex items-center gap-2 cursor-pointer">
+                      <CreditCard className="w-4 h-4" /> Pay Online (Razorpay)
+                      {razorpayConfigured === false && <span className="text-xs text-muted-foreground ml-2">(Not configured)</span>}
+                    </Label>
+                  </div>
                 </RadioGroup>
               </CardContent>
             </Card>
@@ -136,7 +246,9 @@ export default function CheckoutPage() {
                   ))}
                 </div>
                 <div className="border-t pt-4 flex justify-between font-bold text-lg"><span>Total</span><span>₹{subtotal.toFixed(2)}</span></div>
-                <Button type="submit" className="w-full mt-4" size="lg" disabled={submitting}>{submitting ? 'Placing Order...' : 'Place Order'}</Button>
+                <Button type="submit" className="w-full mt-4" size="lg" disabled={submitting || cart.items.length === 0}>
+                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</> : 'Place Order'}
+                </Button>
               </CardContent>
             </Card>
           </div>
