@@ -9,8 +9,9 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCart } from '@/hooks/useCart';
+import { useStoreAuth } from '@/contexts/StoreAuthContext';
 import { toast } from 'sonner';
-import { CreditCard, Truck, Loader2, Zap, Clock, AlertTriangle, MapPin } from 'lucide-react';
+import { CreditCard, Truck, Loader2, Zap, Clock, AlertTriangle, MapPin, BookOpen } from 'lucide-react';
 
 interface Tenant { id: string; store_name: string; store_slug: string; business_type: 'ecommerce' | 'grocery'; }
 
@@ -24,6 +25,16 @@ interface DeliverySettings {
 
 interface DeliveryZone { id: string; name: string; pincodes: string[]; }
 interface DeliverySlot { id: string; label: string; zone_id: string | null; }
+interface CustomerAddress {
+  id: string;
+  label: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  is_default: boolean;
+}
 
 declare global {
   interface Window { Razorpay: any; }
@@ -32,11 +43,16 @@ declare global {
 export default function CheckoutPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const { customer } = useStoreAuth();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [submitting, setSubmitting] = useState(false);
   const [razorpayConfigured, setRazorpayConfigured] = useState<boolean | null>(null);
   const [form, setForm] = useState({ name: '', phone: '', email: '', line1: '', line2: '', city: '', state: '', pincode: '' });
+  
+  // Customer addresses state
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('new');
   
   // Grocery-specific state
   const [deliverySettings, setDeliverySettings] = useState<DeliverySettings | null>(null);
@@ -84,6 +100,71 @@ export default function CheckoutPage() {
     };
     fetchTenant();
   }, [slug]);
+
+  // Prefill customer data when logged in
+  useEffect(() => {
+    if (customer) {
+      setForm(prev => ({
+        ...prev,
+        name: customer.name || prev.name,
+        phone: customer.phone || prev.phone,
+        email: customer.email || prev.email
+      }));
+    }
+  }, [customer]);
+
+  // Fetch saved addresses when customer is logged in
+  useEffect(() => {
+    const fetchAddresses = async () => {
+      if (!customer) {
+        setSavedAddresses([]);
+        return;
+      }
+      const { data } = await supabase
+        .from('customer_addresses')
+        .select('*')
+        .eq('customer_id', customer.id)
+        .order('is_default', { ascending: false });
+      
+      if (data && data.length > 0) {
+        setSavedAddresses(data);
+        // Auto-select default address
+        const defaultAddr = data.find(a => a.is_default) || data[0];
+        if (defaultAddr) {
+          setSelectedAddressId(defaultAddr.id);
+          setForm(prev => ({
+            ...prev,
+            line1: defaultAddr.line1,
+            line2: defaultAddr.line2 || '',
+            city: defaultAddr.city,
+            state: defaultAddr.state,
+            pincode: defaultAddr.pincode
+          }));
+        }
+      }
+    };
+    fetchAddresses();
+  }, [customer]);
+
+  // Handle address selection change
+  const handleAddressChange = (addressId: string) => {
+    setSelectedAddressId(addressId);
+    if (addressId === 'new') {
+      setForm(prev => ({ ...prev, line1: '', line2: '', city: '', state: '', pincode: '' }));
+    } else {
+      const addr = savedAddresses.find(a => a.id === addressId);
+      if (addr) {
+        setForm(prev => ({
+          ...prev,
+          line1: addr.line1,
+          line2: addr.line2 || '',
+          city: addr.city,
+          state: addr.state,
+          pincode: addr.pincode
+        }));
+      }
+    }
+  };
 
   // Load Razorpay script
   useEffect(() => {
@@ -219,6 +300,7 @@ export default function CheckoutPage() {
           customer_name: form.name,
           customer_phone: form.phone,
           customer_email: form.email || null,
+          customer_id: customer?.id || null,
           shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
           subtotal,
           delivery_fee: deliveryFee,
@@ -260,6 +342,7 @@ export default function CheckoutPage() {
         const { data: order, error: orderError } = await supabase.from('orders').insert({
           tenant_id: tenant.id,
           order_number: orderNumber,
+          customer_id: customer?.id || null,
           customer_name: form.name,
           customer_phone: form.phone,
           customer_email: form.email || null,
@@ -318,6 +401,28 @@ export default function CheckoutPage() {
             <Card>
               <CardHeader><CardTitle>Delivery Address</CardTitle></CardHeader>
               <CardContent className="space-y-4">
+                {/* Address selector for logged-in customers */}
+                {customer && savedAddresses.length > 0 && (
+                  <div className="mb-4">
+                    <Label className="flex items-center gap-2 mb-2">
+                      <BookOpen className="w-4 h-4" /> Saved Addresses
+                    </Label>
+                    <Select value={selectedAddressId} onValueChange={handleAddressChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select an address" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {savedAddresses.map(addr => (
+                          <SelectItem key={addr.id} value={addr.id}>
+                            {addr.label}: {addr.line1}, {addr.city} - {addr.pincode}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new">+ Enter new address</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                
                 <div><Label>Address Line 1 *</Label><Input required value={form.line1} onChange={e => setForm({...form, line1: e.target.value})} /></div>
                 <div><Label>Address Line 2</Label><Input value={form.line2} onChange={e => setForm({...form, line2: e.target.value})} /></div>
                 <div className="grid grid-cols-2 gap-4">
