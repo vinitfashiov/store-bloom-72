@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminLayout } from '@/components/admin/AdminLayout';
 import { toast } from 'sonner';
 import AdminDashboard from './admin/AdminDashboard';
 import AdminProducts from './admin/AdminProducts';
+import AdminProductForm from './admin/AdminProductForm';
 import AdminCategories from './admin/AdminCategories';
 import AdminBrands from './admin/AdminBrands';
 import AdminAttributes from './admin/AdminAttributes';
@@ -19,6 +20,12 @@ import AdminDeliverySlots from './admin/AdminDeliverySlots';
 import AdminDeliverySettings from './admin/AdminDeliverySettings';
 import AdminProductAvailability from './admin/AdminProductAvailability';
 import AdminPaymentIntents from './admin/AdminPaymentIntents';
+
+// Wrapper to pass productId from route params
+function ProductFormWrapper({ tenantId, disabled }: { tenantId: string; disabled: boolean }) {
+  const { productId } = useParams<{ productId: string }>();
+  return <AdminProductForm tenantId={tenantId} productId={productId} disabled={disabled} />;
+}
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -80,6 +87,8 @@ export default function Dashboard() {
       <Routes>
         <Route index element={<AdminDashboard tenant={tenant} isTrialExpired={isTrialExpired} />} />
         <Route path="products" element={<AdminProducts tenantId={tenant.id} disabled={isTrialExpired} />} />
+        <Route path="products/new" element={<AdminProductForm tenantId={tenant.id} disabled={isTrialExpired} />} />
+        <Route path="products/:productId" element={<ProductFormWrapper tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="categories" element={<AdminCategories tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="brands" element={<AdminBrands tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="attributes" element={<AdminAttributes tenantId={tenant.id} disabled={isTrialExpired} />} />
