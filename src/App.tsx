@@ -8,7 +8,11 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
-import Storefront from "./pages/Storefront";
+import StoreHome from "./pages/store/StoreHome";
+import ProductList from "./pages/store/ProductList";
+import CartPage from "./pages/store/CartPage";
+import CheckoutPage from "./pages/store/CheckoutPage";
+import OrderConfirmation from "./pages/store/OrderConfirmation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,9 +28,13 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/store/:slug" element={<Storefront />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/dashboard/*" element={<Dashboard />} />
+            <Route path="/store/:slug" element={<StoreHome />} />
+            <Route path="/store/:slug/products" element={<ProductList />} />
+            <Route path="/store/:slug/product/:productSlug" element={<ProductDetail />} />
+            <Route path="/store/:slug/cart" element={<CartPage />} />
+            <Route path="/store/:slug/checkout" element={<CheckoutPage />} />
+            <Route path="/store/:slug/order-confirmation" element={<OrderConfirmation />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
