@@ -406,6 +406,66 @@ export type Database = {
           },
         ]
       }
+      payment_intents: {
+        Row: {
+          amount: number
+          cart_id: string
+          created_at: string
+          currency: string
+          draft_order_data: Json
+          id: string
+          razorpay_order_id: string | null
+          razorpay_payment_id: string | null
+          status: string
+          store_slug: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          cart_id: string
+          created_at?: string
+          currency?: string
+          draft_order_data?: Json
+          id?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          status?: string
+          store_slug: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          cart_id?: string
+          created_at?: string
+          currency?: string
+          draft_order_data?: Json
+          id?: string
+          razorpay_order_id?: string | null
+          razorpay_payment_id?: string | null
+          status?: string
+          store_slug?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_intents_cart_id_fkey"
+            columns: ["cart_id"]
+            isOneToOne: false
+            referencedRelation: "carts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_intents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_zone_availability: {
         Row: {
           created_at: string
