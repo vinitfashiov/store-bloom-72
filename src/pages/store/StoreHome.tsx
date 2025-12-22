@@ -44,7 +44,10 @@ interface Product {
   compare_at_price: number | null;
   images: string[];
   stock_qty: number;
+  has_variants?: boolean;
+  total_variant_stock?: number;
   category: { name: string } | null;
+  brand?: { name: string } | null;
 }
 
 export default function StoreHome() {
@@ -102,15 +105,32 @@ export default function StoreHome() {
 
       setCategories(cats || []);
 
-      // Fetch featured products
+      // Fetch featured products with variant stock calculation
       const { data: prods } = await supabase
         .from('products')
-        .select('id, name, slug, price, compare_at_price, images, stock_qty, category:categories(name)')
+        .select('id, name, slug, price, compare_at_price, images, stock_qty, has_variants, category:categories(name), brand:brands(name)')
         .eq('tenant_id', tenantData.id)
         .eq('is_active', true)
         .limit(8);
 
-      setProducts(prods as Product[] || []);
+      // Calculate total_variant_stock for products with variants
+      const productsWithVariantStock = await Promise.all(
+        (prods || []).map(async (product: any) => {
+          if (product.has_variants) {
+            const { data: variants } = await supabase
+              .from('product_variants')
+              .select('stock_qty')
+              .eq('product_id', product.id)
+              .eq('is_active', true);
+            
+            const totalStock = variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0;
+            return { ...product, total_variant_stock: totalStock };
+          }
+          return product;
+        })
+      );
+
+      setProducts(productsWithVariantStock as Product[]);
       setLoading(false);
     };
 
