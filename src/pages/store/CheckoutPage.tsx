@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useCart } from '@/hooks/useCart';
 import { useStoreAuth } from '@/contexts/StoreAuthContext';
 import { toast } from 'sonner';
-import { CreditCard, Truck, Loader2, Zap, Clock, AlertTriangle, MapPin, BookOpen } from 'lucide-react';
+import { CreditCard, Truck, Loader2, Zap, Clock, AlertTriangle, MapPin, BookOpen, Tag, X, Check } from 'lucide-react';
 
 interface Tenant { id: string; store_name: string; store_slug: string; business_type: 'ecommerce' | 'grocery'; }
 
@@ -34,6 +34,14 @@ interface CustomerAddress {
   state: string;
   pincode: string;
   is_default: boolean;
+}
+
+interface AppliedCoupon {
+  coupon_id: string;
+  coupon_code: string;
+  coupon_type: 'percent' | 'fixed';
+  coupon_value: number;
+  discount_amount: number;
 }
 
 declare global {
@@ -62,6 +70,12 @@ export default function CheckoutPage() {
   const [deliveryOption, setDeliveryOption] = useState<'asap' | 'slot'>('asap');
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [zoneError, setZoneError] = useState<string>('');
+  
+  // Coupon state
+  const [couponCode, setCouponCode] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponError, setCouponError] = useState('');
 
   const { cart, getSubtotal, clearCart } = useCart(slug || '', tenant?.id || null);
 
@@ -89,7 +103,6 @@ export default function CheckoutPage() {
               delivery_fee: Number(settingsRes.data.delivery_fee),
               free_delivery_above: settingsRes.data.free_delivery_above ? Number(settingsRes.data.free_delivery_above) : null
             });
-            // Default delivery option based on mode
             if (settingsRes.data.delivery_mode === 'slots') setDeliveryOption('slot');
             else setDeliveryOption('asap');
           }
@@ -128,7 +141,6 @@ export default function CheckoutPage() {
       
       if (data && data.length > 0) {
         setSavedAddresses(data);
-        // Auto-select default address
         const defaultAddr = data.find(a => a.is_default) || data[0];
         if (defaultAddr) {
           setSelectedAddressId(defaultAddr.id);
@@ -195,6 +207,24 @@ export default function CheckoutPage() {
   const isGrocery = tenant?.business_type === 'grocery';
   const subtotal = getSubtotal();
   
+  // Re-validate coupon when subtotal changes
+  useEffect(() => {
+    if (appliedCoupon && subtotal > 0) {
+      // Recalculate discount if coupon is applied
+      let newDiscount = 0;
+      if (appliedCoupon.coupon_type === 'percent') {
+        newDiscount = (subtotal * appliedCoupon.coupon_value) / 100;
+      } else {
+        newDiscount = appliedCoupon.coupon_value;
+      }
+      if (newDiscount > subtotal) newDiscount = subtotal;
+      
+      if (newDiscount !== appliedCoupon.discount_amount) {
+        setAppliedCoupon({ ...appliedCoupon, discount_amount: newDiscount });
+      }
+    }
+  }, [subtotal]);
+  
   // Calculate delivery fee for grocery
   const calculateDeliveryFee = () => {
     if (!isGrocery || !deliverySettings) return 0;
@@ -203,11 +233,58 @@ export default function CheckoutPage() {
   };
   
   const deliveryFee = calculateDeliveryFee();
-  const total = subtotal + deliveryFee;
+  const discountTotal = appliedCoupon?.discount_amount || 0;
+  const total = subtotal + deliveryFee - discountTotal;
   const meetsMinOrder = !isGrocery || !deliverySettings?.min_order_amount || subtotal >= deliverySettings.min_order_amount;
 
   // Filter slots by zone
   const availableSlots = slots.filter(s => !s.zone_id || s.zone_id === selectedZone?.id);
+
+  // Apply coupon handler
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim() || !slug) return;
+    
+    setCouponLoading(true);
+    setCouponError('');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('validate-coupon', {
+        body: {
+          store_slug: slug,
+          coupon_code: couponCode.trim(),
+          cart_subtotal: subtotal,
+          customer_id: customer?.id || null
+        }
+      });
+      
+      if (error) throw error;
+      
+      if (data.valid) {
+        setAppliedCoupon({
+          coupon_id: data.coupon_id,
+          coupon_code: data.coupon_code,
+          coupon_type: data.coupon_type,
+          coupon_value: data.coupon_value,
+          discount_amount: data.discount_amount
+        });
+        setCouponCode('');
+        toast.success(data.message);
+      } else {
+        setCouponError(data.error || 'Invalid coupon');
+      }
+    } catch (err: any) {
+      console.error('Coupon error:', err);
+      setCouponError('Failed to apply coupon');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError('');
+    toast.info('Coupon removed');
+  };
 
   const handleRazorpayPayment = async (paymentIntentId: string, orderNumber: string, amount: number) => {
     try {
@@ -246,7 +323,6 @@ export default function CheckoutPage() {
         theme: { color: '#3399cc' },
         modal: { 
           ondismiss: async () => { 
-            // Mark payment intent as cancelled
             await supabase
               .from('payment_intents')
               .update({ status: 'cancelled' })
@@ -259,7 +335,6 @@ export default function CheckoutPage() {
       const razorpay = new window.Razorpay(options);
       razorpay.open();
     } catch (err: any) {
-      // Mark payment intent as failed
       await supabase
         .from('payment_intents')
         .update({ status: 'failed' })
@@ -293,37 +368,40 @@ export default function CheckoutPage() {
     const orderNumber = `ORD-${Date.now()}`;
 
     try {
-      if (paymentMethod === 'razorpay') {
-        // For Razorpay: Create payment intent, NOT the order
-        const draftOrderData = {
-          order_number: orderNumber,
-          customer_name: form.name,
-          customer_phone: form.phone,
-          customer_email: form.email || null,
-          customer_id: customer?.id || null,
-          shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
-          subtotal,
-          delivery_fee: deliveryFee,
-          total,
-          delivery_zone_id: selectedZone?.id || null,
-          delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
-          delivery_option: isGrocery ? deliveryOption : 'standard',
-          items: cart.items.map(item => ({
-            product_id: item.product_id,
-            name: item.product?.name || 'Product',
-            qty: item.qty,
-            unit_price: item.unit_price,
-            stock_qty: item.product?.stock_qty || 0
-          }))
-        };
+      const commonOrderData = {
+        order_number: orderNumber,
+        customer_name: form.name,
+        customer_phone: form.phone,
+        customer_email: form.email || null,
+        customer_id: customer?.id || null,
+        shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
+        subtotal,
+        delivery_fee: deliveryFee,
+        discount_total: discountTotal,
+        total,
+        delivery_zone_id: selectedZone?.id || null,
+        delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
+        delivery_option: isGrocery ? deliveryOption : 'standard',
+        coupon_id: appliedCoupon?.coupon_id || null,
+        coupon_code: appliedCoupon?.coupon_code || null,
+        items: cart.items.map(item => ({
+          product_id: item.product_id,
+          variant_id: (item as any).variant_id || null,
+          name: item.product?.name || 'Product',
+          qty: item.qty,
+          unit_price: item.unit_price,
+          stock_qty: item.product?.stock_qty || 0
+        }))
+      };
 
+      if (paymentMethod === 'razorpay') {
         const { data: paymentIntent, error: piError } = await supabase
           .from('payment_intents')
           .insert({
             tenant_id: tenant.id,
             store_slug: slug,
             cart_id: cart.id,
-            draft_order_data: draftOrderData,
+            draft_order_data: commonOrderData,
             amount: total,
             currency: 'INR',
             status: 'initiated'
@@ -335,7 +413,6 @@ export default function CheckoutPage() {
           throw new Error('Failed to initiate payment');
         }
 
-        // Open Razorpay
         await handleRazorpayPayment(paymentIntent.id, orderNumber, total);
       } else {
         // For COD: Create order directly
@@ -349,25 +426,59 @@ export default function CheckoutPage() {
           shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
           subtotal,
           delivery_fee: deliveryFee,
+          discount_total: discountTotal,
           total,
           payment_method: paymentMethod,
           status: 'pending',
           payment_status: 'unpaid',
           delivery_zone_id: selectedZone?.id || null,
           delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
-          delivery_option: isGrocery ? deliveryOption : 'standard'
+          delivery_option: isGrocery ? deliveryOption : 'standard',
+          coupon_id: appliedCoupon?.coupon_id || null,
+          coupon_code: appliedCoupon?.coupon_code || null
         }).select().single();
 
         if (orderError) throw orderError;
 
         for (const item of cart.items) {
+          const variantId = (item as any).variant_id || null;
           await supabase.from('order_items').insert({
-            tenant_id: tenant.id, order_id: order.id, product_id: item.product_id,
-            name: item.product?.name || 'Product', qty: item.qty,
-            unit_price: item.unit_price, line_total: item.unit_price * item.qty
+            tenant_id: tenant.id, 
+            order_id: order.id, 
+            product_id: item.product_id,
+            variant_id: variantId,
+            name: item.product?.name || 'Product', 
+            qty: item.qty,
+            unit_price: item.unit_price, 
+            line_total: item.unit_price * item.qty
           });
-          const currentStock = item.product?.stock_qty || 0;
-          await supabase.from('products').update({ stock_qty: Math.max(0, currentStock - item.qty) }).eq('id', item.product_id);
+          
+          // Reduce stock from variant or product
+          if (variantId) {
+            const { data: variant } = await supabase.from('product_variants').select('stock_qty').eq('id', variantId).single();
+            if (variant) {
+              await supabase.from('product_variants').update({ stock_qty: Math.max(0, variant.stock_qty - item.qty) }).eq('id', variantId);
+            }
+          } else {
+            const currentStock = item.product?.stock_qty || 0;
+            await supabase.from('products').update({ stock_qty: Math.max(0, currentStock - item.qty) }).eq('id', item.product_id);
+          }
+        }
+
+        // Record coupon redemption
+        if (appliedCoupon) {
+          await supabase.from('coupon_redemptions').insert({
+            tenant_id: tenant.id,
+            coupon_id: appliedCoupon.coupon_id,
+            order_id: order.id,
+            customer_id: customer?.id || null,
+            discount_amount: discountTotal
+          });
+          // Increment used_count manually
+          const { data: currentCoupon } = await supabase.from('coupons').select('used_count').eq('id', appliedCoupon.coupon_id).single();
+          if (currentCoupon) {
+            await supabase.from('coupons').update({ used_count: currentCoupon.used_count + 1 }).eq('id', appliedCoupon.coupon_id);
+          }
         }
 
         await supabase.from('carts').update({ status: 'converted' }).eq('id', cart.id);
@@ -401,7 +512,6 @@ export default function CheckoutPage() {
             <Card>
               <CardHeader><CardTitle>Delivery Address</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                {/* Address selector for logged-in customers */}
                 {customer && savedAddresses.length > 0 && (
                   <div className="mb-4">
                     <Label className="flex items-center gap-2 mb-2">
@@ -518,6 +628,49 @@ export default function CheckoutPage() {
               </CardContent>
             </Card>
 
+            {/* Coupon Section */}
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2"><Tag className="w-4 h-4" /> Apply Coupon</CardTitle></CardHeader>
+              <CardContent>
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-4 h-4 text-green-600" />
+                      <span className="font-medium text-green-700 dark:text-green-400">{appliedCoupon.coupon_code}</span>
+                      <span className="text-sm text-green-600 dark:text-green-400">
+                        {appliedCoupon.coupon_type === 'percent' ? `${appliedCoupon.coupon_value}% off` : `₹${appliedCoupon.coupon_value} off`}
+                      </span>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={removeCoupon}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input 
+                        placeholder="Enter coupon code" 
+                        value={couponCode} 
+                        onChange={e => { setCouponCode(e.target.value.toUpperCase()); setCouponError(''); }}
+                        className="flex-1"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={handleApplyCoupon}
+                        disabled={couponLoading || !couponCode.trim()}
+                      >
+                        {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+                      </Button>
+                    </div>
+                    {couponError && (
+                      <p className="text-sm text-destructive">{couponError}</p>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Min order warning */}
             {isGrocery && deliverySettings?.min_order_amount > 0 && !meetsMinOrder && (
               <Alert variant="destructive">
@@ -545,6 +698,12 @@ export default function CheckoutPage() {
                     <div className="flex justify-between">
                       <span>Delivery</span>
                       <span>{deliveryFee === 0 ? 'FREE' : `₹${deliveryFee.toFixed(2)}`}</span>
+                    </div>
+                  )}
+                  {discountTotal > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount</span>
+                      <span>-₹{discountTotal.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-lg border-t pt-2">
