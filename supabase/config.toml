@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.validate-coupon]
 verify_jwt = false
+
+[functions.create-upgrade-order]
+verify_jwt = false
+
+[functions.verify-upgrade-payment]
+verify_jwt = false

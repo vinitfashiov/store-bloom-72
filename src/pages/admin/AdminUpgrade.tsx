@@ -18,16 +18,17 @@ import {
   ArrowLeft
 } from 'lucide-react';
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 interface Tenant {
   id: string;
   store_name: string;
   plan: 'trial' | 'pro';
   trial_ends_at: string;
-}
-
-interface Integration {
-  razorpay_key_id: string | null;
-  razorpay_key_secret: string | null;
 }
 
 const PRO_FEATURES = [
@@ -41,33 +42,26 @@ const PRO_FEATURES = [
   'Multiple delivery zones',
 ];
 
-const PLAN_PRICE = 24900; // ₹249 in paise
+const PLAN_PRICE = 999; // ₹999
 
 export default function AdminUpgrade() {
   const navigate = useNavigate();
   const { tenant } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [integration, setIntegration] = useState<Integration | null>(null);
-  const [checkingIntegration, setCheckingIntegration] = useState(true);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
 
   useEffect(() => {
-    if (tenant?.id) {
-      fetchIntegration();
-    }
-  }, [tenant?.id]);
+    // Load Razorpay script
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => setScriptLoaded(true);
+    document.body.appendChild(script);
 
-  const fetchIntegration = async () => {
-    if (!tenant?.id) return;
-    
-    const { data } = await supabase
-      .from('tenant_integrations')
-      .select('razorpay_key_id, razorpay_key_secret')
-      .eq('tenant_id', tenant.id)
-      .maybeSingle();
-
-    setIntegration(data);
-    setCheckingIntegration(false);
-  };
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   const getDaysRemaining = () => {
     if (!tenant?.trial_ends_at) return 0;
@@ -78,61 +72,75 @@ export default function AdminUpgrade() {
   };
 
   const handleUpgrade = async () => {
-    if (!tenant) return;
-
-    // Check if Razorpay is configured
-    if (!integration?.razorpay_key_id || !integration?.razorpay_key_secret) {
-      toast.error('Please configure Razorpay in Integrations first');
-      navigate('/dashboard/integrations');
-      return;
-    }
+    if (!tenant || !scriptLoaded) return;
 
     setLoading(true);
 
     try {
-      // Create subscription record
-      const { data: subscription, error: subError } = await supabase
-        .from('subscriptions')
-        .insert({
-          tenant_id: tenant.id,
-          amount: PLAN_PRICE,
-          status: 'pending',
-        })
-        .select()
-        .single();
+      // Create order via edge function
+      const { data, error } = await supabase.functions.invoke('create-upgrade-order', {
+        body: { 
+          tenant_id: tenant.id, 
+          amount: PLAN_PRICE 
+        }
+      });
 
-      if (subError) throw subError;
+      if (error || !data?.order_id) {
+        throw new Error(data?.error || 'Failed to create payment order');
+      }
 
-      // For now, we'll simulate a successful upgrade
-      // In production, you'd integrate with Razorpay subscription API
-      
-      // Update tenant plan to pro
-      const { error: updateError } = await supabase
-        .from('tenants')
-        .update({ 
-          plan: 'pro',
-          trial_ends_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year from now
-        })
-        .eq('id', tenant.id);
+      // Open Razorpay checkout
+      const options = {
+        key: data.key_id,
+        amount: data.amount,
+        currency: data.currency,
+        order_id: data.order_id,
+        name: 'Sellify Pro',
+        description: 'Upgrade to Pro Plan - ₹999/month',
+        handler: async function (response: any) {
+          try {
+            // Verify payment
+            const { data: verifyData, error: verifyError } = await supabase.functions.invoke('verify-upgrade-payment', {
+              body: {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                tenant_id: tenant.id,
+                amount: PLAN_PRICE
+              }
+            });
 
-      if (updateError) throw updateError;
+            if (verifyError || !verifyData?.success) {
+              throw new Error(verifyData?.error || 'Payment verification failed');
+            }
 
-      // Update subscription status
-      await supabase
-        .from('subscriptions')
-        .update({ status: 'active' })
-        .eq('id', subscription.id);
+            toast.success('Upgraded to Pro successfully!');
+            // Refresh to update tenant data
+            window.location.href = '/dashboard';
+          } catch (err: any) {
+            console.error('Verification error:', err);
+            toast.error(err.message || 'Payment verification failed');
+          }
+        },
+        prefill: {
+          name: tenant.store_name,
+        },
+        theme: {
+          color: '#6366f1'
+        },
+        modal: {
+          ondismiss: function() {
+            setLoading(false);
+          }
+        }
+      };
 
-      toast.success('Upgraded to Pro successfully!');
-      navigate('/dashboard');
-      
-      // Refresh the page to update tenant data
-      window.location.reload();
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
 
     } catch (error: any) {
       console.error('Upgrade error:', error);
-      toast.error(error.message || 'Failed to upgrade');
-    } finally {
+      toast.error(error.message || 'Failed to initiate payment');
       setLoading(false);
     }
   };
@@ -245,7 +253,7 @@ export default function AdminUpgrade() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-3xl font-bold">
-                ₹249 <span className="text-base font-normal text-muted-foreground">/month</span>
+                ₹999 <span className="text-base font-normal text-muted-foreground">/month</span>
               </div>
               <ul className="space-y-2 text-sm">
                 {PRO_FEATURES.map((feature, index) => (
@@ -258,7 +266,7 @@ export default function AdminUpgrade() {
               <Button 
                 className="w-full shadow-glow" 
                 onClick={handleUpgrade}
-                disabled={loading || checkingIntegration}
+                disabled={loading || !scriptLoaded}
               >
                 {loading ? (
                   <>
@@ -272,11 +280,6 @@ export default function AdminUpgrade() {
                   </>
                 )}
               </Button>
-              {!integration?.razorpay_key_id && !checkingIntegration && (
-                <p className="text-xs text-muted-foreground text-center">
-                  ⚠️ Configure Razorpay in Integrations first
-                </p>
-              )}
             </CardContent>
           </Card>
         </div>
