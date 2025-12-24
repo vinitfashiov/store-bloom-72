@@ -110,7 +110,7 @@ export default function Dashboard() {
         <Route path="coupons" element={<AdminCoupons tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="customers" element={<AdminCustomers tenantId={tenant.id} />} />
         <Route path="orders" element={<AdminOrders tenantId={tenant.id} />} />
-        <Route path="orders/:orderId" element={<AdminOrderDetail tenantId={tenant.id} disabled={isTrialExpired} />} />
+        <Route path="orders/:orderId" element={<AdminOrderDetail tenantId={tenant.id} disabled={isTrialExpired} isGrocery={isGrocery} />} />
         <Route path="payment-intents" element={<AdminPaymentIntents tenantId={tenant.id} />} />
         <Route path="settings" element={<AdminSettings tenant={tenant} disabled={isTrialExpired} />} />
         <Route path="integrations" element={<AdminIntegrations tenantId={tenant.id} disabled={isTrialExpired} />} />
