@@ -212,6 +212,40 @@ serve(async (req) => {
         .update({ status: 'converted' })
         .eq('id', paymentIntent.cart_id);
 
+      // Create delivery assignment for grocery stores
+      const { data: tenantInfo } = await supabase
+        .from('tenants')
+        .select('business_type')
+        .eq('id', tenant.id)
+        .single();
+
+      if (tenantInfo?.business_type === 'grocery') {
+        // Find delivery area matching the pincode
+        const pincode = draftData.shipping_address?.pincode;
+        let deliveryAreaId = null;
+
+        if (pincode) {
+          const { data: deliveryAreas } = await supabase
+            .from('delivery_areas')
+            .select('id, pincodes')
+            .eq('tenant_id', tenant.id)
+            .eq('is_active', true);
+
+          const matchedArea = deliveryAreas?.find(area => 
+            area.pincodes?.includes(pincode)
+          );
+          deliveryAreaId = matchedArea?.id || null;
+        }
+
+        await supabase.from('delivery_assignments').insert({
+          tenant_id: tenant.id,
+          order_id: newOrder.id,
+          delivery_area_id: deliveryAreaId,
+          status: 'unassigned'
+        });
+        console.log('Delivery assignment created for order:', newOrder.id);
+      }
+
       console.log('Payment verified and order created successfully');
       return new Response(
         JSON.stringify({ success: true, order_number: draftData.order_number }),

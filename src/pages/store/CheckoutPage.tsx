@@ -500,6 +500,27 @@ export default function CheckoutPage() {
           }
         }
 
+        // Create delivery assignment for grocery orders
+        if (isGrocery) {
+          // Find delivery area that matches the pincode
+          const { data: deliveryAreas } = await supabase
+            .from('delivery_areas')
+            .select('id, pincodes')
+            .eq('tenant_id', tenant.id)
+            .eq('is_active', true);
+          
+          const matchedArea = deliveryAreas?.find(area => 
+            area.pincodes?.includes(form.pincode)
+          );
+
+          await supabase.from('delivery_assignments').insert({
+            tenant_id: tenant.id,
+            order_id: order.id,
+            delivery_area_id: matchedArea?.id || null,
+            status: 'unassigned'
+          });
+        }
+
         await supabase.from('carts').update({ status: 'converted' }).eq('id', cart.id);
         await clearCart();
         toast.success('Order placed successfully!');

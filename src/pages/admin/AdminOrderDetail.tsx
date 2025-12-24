@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ArrowLeft, Truck, Package, Loader2, CheckCircle, ExternalLink, IndianRupee } from 'lucide-react';
+import { ArrowLeft, Truck, Package, Loader2, CheckCircle, ExternalLink, IndianRupee, UserCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import OrderInvoice from '@/components/admin/OrderInvoice';
 
@@ -48,9 +49,24 @@ interface ShiprocketShipment {
   status: string | null;
 }
 
+interface DeliveryAssignment {
+  id: string;
+  delivery_boy_id: string | null;
+  status: string;
+  delivery_boys?: { id: string; full_name: string } | null;
+}
+
+interface DeliveryBoy {
+  id: string;
+  full_name: string;
+  mobile_number: string;
+  is_active: boolean;
+}
+
 interface AdminOrderDetailProps {
   tenantId: string;
   disabled?: boolean;
+  isGrocery?: boolean;
 }
 
 interface StoreSettings {
@@ -62,7 +78,7 @@ interface StoreSettings {
 
 const statusFlow = ['pending', 'confirmed', 'packed', 'shipped', 'delivered'];
 
-export default function AdminOrderDetail({ tenantId, disabled }: AdminOrderDetailProps) {
+export default function AdminOrderDetail({ tenantId, disabled, isGrocery }: AdminOrderDetailProps) {
   const { orderId } = useParams();
   const [order, setOrder] = useState<Order | null>(null);
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -72,6 +88,11 @@ export default function AdminOrderDetail({ tenantId, disabled }: AdminOrderDetai
   const [loading, setLoading] = useState(true);
   const [creatingShipment, setCreatingShipment] = useState(false);
   const [updatingPayment, setUpdatingPayment] = useState(false);
+  
+  // Delivery assignment state
+  const [deliveryAssignment, setDeliveryAssignment] = useState<DeliveryAssignment | null>(null);
+  const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
+  const [assigningDelivery, setAssigningDelivery] = useState(false);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -96,11 +117,64 @@ export default function AdminOrderDetail({ tenantId, disabled }: AdminOrderDetai
       if (shipmentRes.data) setShipment(shipmentRes.data);
       setShiprocketConfigured(!!integrationRes.data?.shiprocket_email);
       if (storeSettingsRes.data) setStoreSettings(storeSettingsRes.data);
+      
+      // Fetch grocery-specific data
+      if (isGrocery) {
+        const [assignmentRes, boysRes] = await Promise.all([
+          supabase.from('delivery_assignments').select('id, delivery_boy_id, status, delivery_boys(id, full_name)').eq('order_id', orderId).maybeSingle(),
+          supabase.from('delivery_boys').select('id, full_name, mobile_number, is_active').eq('tenant_id', tenantId).eq('is_active', true)
+        ]);
+        if (assignmentRes.data) setDeliveryAssignment(assignmentRes.data as any);
+        if (boysRes.data) setDeliveryBoys(boysRes.data);
+      }
+      
       setLoading(false);
     };
 
     fetchOrder();
-  }, [orderId, tenantId]);
+  }, [orderId, tenantId, isGrocery]);
+
+  const assignDeliveryBoy = async (deliveryBoyId: string) => {
+    if (!deliveryAssignment || !order) return;
+    
+    setAssigningDelivery(true);
+    try {
+      const { error } = await supabase
+        .from('delivery_assignments')
+        .update({
+          delivery_boy_id: deliveryBoyId,
+          status: 'assigned',
+          assigned_at: new Date().toISOString()
+        })
+        .eq('id', deliveryAssignment.id);
+
+      if (error) throw error;
+
+      // Log status change
+      await supabase.from('delivery_status_logs').insert({
+        tenant_id: tenantId,
+        assignment_id: deliveryAssignment.id,
+        delivery_boy_id: deliveryBoyId,
+        old_status: deliveryAssignment.status as any,
+        new_status: 'assigned' as const,
+        notes: 'Assigned by admin'
+      });
+
+      const assignedBoy = deliveryBoys.find(b => b.id === deliveryBoyId);
+      setDeliveryAssignment({
+        ...deliveryAssignment,
+        delivery_boy_id: deliveryBoyId,
+        status: 'assigned',
+        delivery_boys: assignedBoy ? { id: assignedBoy.id, full_name: assignedBoy.full_name } : null
+      });
+      
+      toast.success('Delivery boy assigned successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to assign delivery boy');
+    } finally {
+      setAssigningDelivery(false);
+    }
+  };
 
   const updateStatus = async (newStatus: string) => {
     if (!order || disabled) return;
@@ -316,6 +390,47 @@ export default function AdminOrderDetail({ tenantId, disabled }: AdminOrderDetai
               <Badge variant="outline" className="capitalize">{order.delivery_option || 'standard'}</Badge>
             </CardContent>
           </Card>
+
+          {/* Delivery Assignment - for grocery stores */}
+          {isGrocery && deliveryAssignment && (
+            <Card>
+              <CardHeader><CardTitle className="flex items-center gap-2"><UserCheck className="w-4 h-4" /> Delivery Assignment</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Status</span>
+                  <Badge variant={deliveryAssignment.status === 'delivered' ? 'default' : 'secondary'}>
+                    {deliveryAssignment.status.replace('_', ' ').toUpperCase()}
+                  </Badge>
+                </div>
+                
+                {deliveryAssignment.delivery_boys ? (
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Assigned To</span>
+                    <span className="font-medium">{deliveryAssignment.delivery_boys.full_name}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Not yet assigned</p>
+                    <Select
+                      onValueChange={assignDeliveryBoy}
+                      disabled={disabled || assigningDelivery}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={assigningDelivery ? "Assigning..." : "Select delivery boy"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {deliveryBoys.map(boy => (
+                          <SelectItem key={boy.id} value={boy.id}>
+                            {boy.full_name} ({boy.mobile_number})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader><CardTitle>Payment</CardTitle></CardHeader>
