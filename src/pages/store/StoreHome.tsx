@@ -18,6 +18,11 @@ import { GroceryCategoryGrid } from '@/components/storefront/grocery/GroceryCate
 import { GroceryBrandScroll } from '@/components/storefront/grocery/GroceryBrandScroll';
 import { GroceryProductSection } from '@/components/storefront/grocery/GroceryProductSection';
 import { GroceryMembershipCard } from '@/components/storefront/grocery/GroceryPromoElements';
+import { GroceryDesktopHeader } from '@/components/storefront/grocery/GroceryDesktopHeader';
+import { GroceryHeroBanner } from '@/components/storefront/grocery/GroceryHeroBanner';
+import { GroceryPromoCards } from '@/components/storefront/grocery/GroceryPromoCards';
+import { GroceryDesktopCategoryGrid } from '@/components/storefront/grocery/GroceryDesktopCategoryGrid';
+import { GroceryDesktopProductSection } from '@/components/storefront/grocery/GroceryDesktopProductSection';
 import { useCart } from '@/hooks/useCart';
 import { useCustomDomain } from '@/contexts/CustomDomainContext';
 import { toast } from 'sonner';
@@ -215,7 +220,7 @@ export default function StoreHome() {
 
   const isGrocery = tenant.business_type === 'grocery';
 
-  // Grocery Store Layout (Mobile-First)
+  // Grocery Store Layout
   if (isGrocery) {
     return (
       <div className="min-h-screen bg-neutral-50 flex flex-col pb-20 lg:pb-0">
@@ -233,57 +238,96 @@ export default function StoreHome() {
 
         {/* Desktop Header */}
         <div className="hidden lg:block">
-          <StoreHeader
+          <GroceryDesktopHeader
             storeName={tenant.store_name}
             storeSlug={tenant.store_slug}
-            businessType={tenant.business_type}
-            cartCount={itemCount}
+            logoPath={storeSettings?.logo_path}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            logoPath={storeSettings?.logo_path}
-            categories={categories}
+            deliveryAddress={storeSettings?.store_address || tenant.address || undefined}
+            cartCount={itemCount}
           />
         </div>
 
         <main className="flex-1 bg-white lg:bg-neutral-50">
-          {/* Promo Banner */}
-          <GroceryPromoBanner banners={banners} storeSlug={tenant.store_slug} />
+          {/* Mobile Layout */}
+          <div className="lg:hidden">
+            <GroceryPromoBanner banners={banners} storeSlug={tenant.store_slug} />
+            <GroceryMembershipCard storeSlug={tenant.store_slug} />
+            <GroceryProductSection
+              title="Bestsellers"
+              products={products}
+              storeSlug={tenant.store_slug}
+              onAddToCart={handleAddToCart}
+              addingProductId={addingProduct}
+            />
+            <GroceryCategoryGrid 
+              categories={categories} 
+              storeSlug={tenant.store_slug}
+            />
+            <GroceryBrandScroll 
+              brands={brands} 
+              storeSlug={tenant.store_slug}
+            />
+            <GroceryProductSection
+              title="New Arrivals"
+              products={newProducts}
+              storeSlug={tenant.store_slug}
+              onAddToCart={handleAddToCart}
+              addingProductId={addingProduct}
+            />
+          </div>
 
-          {/* Membership Card */}
-          <GroceryMembershipCard storeSlug={tenant.store_slug} />
+          {/* Desktop Layout - Blinkit Style */}
+          <div className="hidden lg:block max-w-7xl mx-auto">
+            {/* Hero Banner */}
+            <GroceryHeroBanner banners={banners} storeSlug={tenant.store_slug} />
 
-          {/* Bestsellers */}
-          <GroceryProductSection
-            title="Bestsellers"
-            products={products}
-            storeSlug={tenant.store_slug}
-            onAddToCart={handleAddToCart}
-            addingProductId={addingProduct}
-          />
+            {/* Promo Cards Row */}
+            <GroceryPromoCards storeSlug={tenant.store_slug} />
 
-          {/* Categories Grid */}
-          <GroceryCategoryGrid 
-            categories={categories} 
-            storeSlug={tenant.store_slug}
-          />
+            {/* Category Grid - 2 rows */}
+            <GroceryDesktopCategoryGrid 
+              categories={categories} 
+              storeSlug={tenant.store_slug}
+            />
 
-          {/* Popular Brands */}
-          <GroceryBrandScroll 
-            brands={brands} 
-            storeSlug={tenant.store_slug}
-          />
+            {/* Product Sections */}
+            <GroceryDesktopProductSection
+              title="Dairy, Bread & Eggs"
+              products={products}
+              storeSlug={tenant.store_slug}
+              onAddToCart={handleAddToCart}
+              addingProductId={addingProduct}
+            />
 
-          {/* New Arrivals */}
-          <GroceryProductSection
-            title="New Arrivals"
-            products={newProducts}
-            storeSlug={tenant.store_slug}
-            onAddToCart={handleAddToCart}
-            addingProductId={addingProduct}
-          />
+            <GroceryDesktopProductSection
+              title="Snacks & Munchies"
+              products={newProducts}
+              storeSlug={tenant.store_slug}
+              onAddToCart={handleAddToCart}
+              addingProductId={addingProduct}
+            />
+
+            <GroceryDesktopProductSection
+              title="Cold Drinks & Juices"
+              products={products.slice().reverse()}
+              storeSlug={tenant.store_slug}
+              onAddToCart={handleAddToCart}
+              addingProductId={addingProduct}
+            />
+
+            <GroceryDesktopProductSection
+              title="Bestsellers"
+              products={[...products, ...newProducts].slice(0, 10)}
+              storeSlug={tenant.store_slug}
+              onAddToCart={handleAddToCart}
+              addingProductId={addingProduct}
+            />
+          </div>
 
           {/* Desktop Footer */}
-          <div className="hidden lg:block">
+          <div className="hidden lg:block mt-8">
             <StoreFooter
               storeName={tenant.store_name}
               storeSlug={tenant.store_slug}
