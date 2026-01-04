@@ -23,6 +23,7 @@ import AdminDeliverySettings from './admin/AdminDeliverySettings';
 import AdminProductAvailability from './admin/AdminProductAvailability';
 import AdminPaymentIntents from './admin/AdminPaymentIntents';
 import AdminStoreSettings from './admin/AdminStoreSettings';
+import AdminPageBuilder from './admin/AdminPageBuilder';
 import AdminStoreBanners from './admin/AdminStoreBanners';
 import AdminStorePages from './admin/AdminStorePages';
 import AdminUpgrade from './admin/AdminUpgrade';
@@ -163,6 +164,7 @@ export default function Dashboard() {
         <Route path="settings" element={<AdminSettings tenant={tenant} disabled={isTrialExpired} />} />
         <Route path="integrations" element={<AdminIntegrations tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="store-settings" element={<AdminStoreSettings tenantId={tenant.id} disabled={isTrialExpired} />} />
+        <Route path="page-builder" element={<AdminPageBuilder tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="banners" element={<AdminStoreBanners tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="pages" element={<AdminStorePages tenantId={tenant.id} storeSlug={tenant.store_slug} disabled={isTrialExpired} />} />
         <Route path="upgrade" element={<AdminUpgrade />} />
