@@ -245,7 +245,7 @@ export default function AdminPOS({ tenantId }: AdminPOSProps) {
       return;
     }
 
-    // Create sale items
+    // Create sale items (batch insert)
     const saleItems = cart.map(item => ({
       tenant_id: tenantId,
       pos_sale_id: sale.id,
@@ -259,26 +259,36 @@ export default function AdminPOS({ tenantId }: AdminPOSProps) {
 
     await supabase.from('pos_sale_items').insert(saleItems);
 
-    // Create inventory movements and update stock
-    for (const item of cart) {
-      await supabase.from('inventory_movements').insert({
-        tenant_id: tenantId,
-        product_id: item.product_id,
-        movement_type: 'pos_sale',
-        quantity: -item.quantity,
-        reference_type: 'pos_sale',
-        reference_id: sale.id,
-        notes: `POS Sale ${saleNumber}`
-      });
+    // Prepare inventory movements for batch insert
+    const inventoryMovements = cart.map(item => ({
+      tenant_id: tenantId,
+      product_id: item.product_id,
+      variant_id: null,
+      movement_type: 'pos_sale',
+      quantity: -item.quantity,
+      reference_type: 'pos_sale',
+      reference_id: sale.id,
+      notes: `POS Sale ${saleNumber}`
+    }));
 
-      const product = products.find(p => p.id === item.product_id);
-      if (product) {
-        await supabase
-          .from('products')
-          .update({ stock_qty: product.stock_qty - item.quantity })
-          .eq('id', item.product_id);
+    // Batch insert inventory movements
+    await supabase.from('inventory_movements').insert(inventoryMovements);
+
+    // Batch update stock (using atomic updates to prevent race conditions)
+    const stockUpdates = cart.map(async (item) => {
+      // Use atomic update with stock check
+      const { error } = await supabase.rpc('update_product_stock_atomic', {
+        p_product_id: item.product_id,
+        p_quantity: -item.quantity
+      });
+      if (error) {
+        console.error(`Failed to update stock for product ${item.product_id}:`, error);
+        throw error;
       }
-    }
+    });
+
+    // Wait for all stock updates to complete
+    await Promise.all(stockUpdates);
 
     setLastSale({
       ...sale,

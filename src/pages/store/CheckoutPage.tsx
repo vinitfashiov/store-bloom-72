@@ -391,14 +391,20 @@ export default function CheckoutPage() {
         delivery_option: isGrocery ? deliveryOption : 'standard',
         coupon_id: appliedCoupon?.coupon_id || null,
         coupon_code: appliedCoupon?.coupon_code || null,
-        items: cart.items.map(item => ({
-          product_id: item.product_id,
-          variant_id: (item as any).variant_id || null,
-          name: item.product?.name || 'Product',
-          qty: item.qty,
-          unit_price: item.unit_price,
-          stock_qty: item.product?.stock_qty || 0
-        }))
+        items: cart.items.map(item => {
+          const variantId = (item as any).variant_id || null;
+          return {
+            product_id: item.product_id,
+            variant_id: variantId,
+            name: item.product?.name || 'Product',
+            qty: item.qty,
+            unit_price: item.unit_price,
+            line_total: item.unit_price * item.qty,
+            stock_qty: variantId 
+              ? (item as any).variant?.stock_qty || item.product?.stock_qty || 0
+              : item.product?.stock_qty || 0
+          };
+        })
       };
 
       if (paymentMethod === 'razorpay') {
@@ -422,87 +428,81 @@ export default function CheckoutPage() {
 
         await handleRazorpayPayment(paymentIntent.id, orderNumber, total);
       } else {
-        // For COD: Create order directly
-        const { data: order, error: orderError } = await supabase.from('orders').insert({
-          tenant_id: tenant.id,
-          order_number: orderNumber,
-          customer_id: customer?.id || null,
-          customer_name: form.name,
-          customer_phone: form.phone,
-          customer_email: form.email || null,
-          shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
-          subtotal,
-          delivery_fee: deliveryFee,
-          discount_total: discountTotal,
-          total,
-          payment_method: paymentMethod,
-          status: 'pending',
-          payment_status: 'unpaid',
-          delivery_zone_id: selectedZone?.id || null,
-          delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
-          delivery_option: isGrocery ? deliveryOption : 'standard',
-          coupon_id: appliedCoupon?.coupon_id || null,
-          coupon_code: appliedCoupon?.coupon_code || null
-        }).select().single();
-
-        if (orderError) throw orderError;
-
-        for (const item of cart.items) {
+        // For COD: Use atomic function for transaction safety and performance
+        // Prepare order items data
+        const orderItemsData = cart.items.map(item => {
           const variantId = (item as any).variant_id || null;
-          await supabase.from('order_items').insert({
-            tenant_id: tenant.id, 
-            order_id: order.id, 
+          return {
             product_id: item.product_id,
             variant_id: variantId,
-            name: item.product?.name || 'Product', 
+            name: item.product?.name || 'Product',
             qty: item.qty,
-            unit_price: item.unit_price, 
+            unit_price: item.unit_price,
             line_total: item.unit_price * item.qty
-          });
+          };
+        });
 
-          // Create inventory movement for ledger tracking
-          await supabase.from('inventory_movements').insert({
-            tenant_id: tenant.id,
-            product_id: item.product_id,
-            variant_id: variantId,
-            movement_type: 'sale',
-            quantity: -item.qty,
-            reference_type: 'order',
-            reference_id: order.id,
-            notes: `Online order ${orderNumber}`,
-          });
-          
-          // Reduce stock from variant or product
-          if (variantId) {
-            const { data: variant } = await supabase.from('product_variants').select('stock_qty').eq('id', variantId).single();
-            if (variant) {
-              await supabase.from('product_variants').update({ stock_qty: Math.max(0, variant.stock_qty - item.qty) }).eq('id', variantId);
-            }
+        const { data: orderId, error: orderError } = await supabase.rpc('create_order_atomic', {
+          p_tenant_id: tenant.id,
+          p_order_number: orderNumber,
+          p_customer_id: customer?.id || null,
+          p_customer_name: form.name,
+          p_customer_phone: form.phone,
+          p_customer_email: form.email || null,
+          p_shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
+          p_subtotal: subtotal,
+          p_discount_total: discountTotal,
+          p_delivery_fee: deliveryFee,
+          p_total: total,
+          p_payment_method: paymentMethod,
+          p_payment_status: 'unpaid',
+          p_status: 'pending',
+          p_delivery_zone_id: selectedZone?.id || null,
+          p_delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
+          p_delivery_option: isGrocery ? deliveryOption : 'standard',
+          p_coupon_id: appliedCoupon?.coupon_id || null,
+          p_coupon_code: appliedCoupon?.coupon_code || null,
+          p_razorpay_order_id: null,
+          p_razorpay_payment_id: null,
+          p_order_items: orderItemsData as any,
+          p_cart_id: cart.id
+        });
+
+        if (orderError) {
+          // Handle specific error messages
+          if (orderError.message?.includes('Insufficient stock')) {
+            toast.error('Some items are out of stock. Please refresh and try again.');
           } else {
-            const currentStock = item.product?.stock_qty || 0;
-            await supabase.from('products').update({ stock_qty: Math.max(0, currentStock - item.qty) }).eq('id', item.product_id);
+            toast.error(orderError.message || 'Failed to create order');
           }
+          setSubmitting(false);
+          return;
         }
 
-        // Record coupon redemption
+        if (!orderId) {
+          toast.error('Failed to create order');
+          setSubmitting(false);
+          return;
+        }
+
+        // Record coupon redemption if applicable
         if (appliedCoupon) {
           await supabase.from('coupon_redemptions').insert({
             tenant_id: tenant.id,
             coupon_id: appliedCoupon.coupon_id,
-            order_id: order.id,
+            order_id: orderId,
             customer_id: customer?.id || null,
             discount_amount: discountTotal
           });
-          // Increment used_count manually
-          const { data: currentCoupon } = await supabase.from('coupons').select('used_count').eq('id', appliedCoupon.coupon_id).single();
-          if (currentCoupon) {
-            await supabase.from('coupons').update({ used_count: currentCoupon.used_count + 1 }).eq('id', appliedCoupon.coupon_id);
-          }
+          
+          // Atomically increment coupon usage
+          await supabase.rpc('increment_coupon_usage', {
+            p_coupon_id: appliedCoupon.coupon_id
+          });
         }
 
         // Create delivery assignment for grocery orders
         if (isGrocery) {
-          // Find delivery area that matches the pincode
           const { data: deliveryAreas } = await supabase
             .from('delivery_areas')
             .select('id, pincodes')
@@ -515,13 +515,12 @@ export default function CheckoutPage() {
 
           await supabase.from('delivery_assignments').insert({
             tenant_id: tenant.id,
-            order_id: order.id,
+            order_id: orderId,
             delivery_area_id: matchedArea?.id || null,
             status: 'unassigned'
           });
         }
 
-        await supabase.from('carts').update({ status: 'converted' }).eq('id', cart.id);
         await clearCart();
         toast.success('Order placed successfully!');
         navigate(`/store/${slug}/order-confirmation?order=${orderNumber}`);

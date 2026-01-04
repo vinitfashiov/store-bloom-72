@@ -133,84 +133,82 @@ serve(async (req) => {
         delivery_option: string;
         items: Array<{
           product_id: string;
+          variant_id?: string | null;
           name: string;
           qty: number;
           unit_price: number;
+          line_total?: number;
           stock_qty: number;
         }>;
+        coupon_id?: string | null;
+        coupon_code?: string | null;
+        discount_total?: number;
       };
 
-      const { data: newOrder, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          tenant_id: tenant.id,
-          order_number: draftData.order_number,
-          customer_id: draftData.customer_id || null,
-          customer_name: draftData.customer_name,
-          customer_phone: draftData.customer_phone,
-          customer_email: draftData.customer_email || null,
-          shipping_address: draftData.shipping_address,
-          subtotal: draftData.subtotal,
-          delivery_fee: draftData.delivery_fee,
-          total: draftData.total,
-          payment_method: 'razorpay',
-          status: 'confirmed',
-          payment_status: 'paid',
-          delivery_zone_id: draftData.delivery_zone_id || null,
-          delivery_slot_id: draftData.delivery_slot_id || null,
-          delivery_option: draftData.delivery_option,
-          razorpay_order_id,
-          razorpay_payment_id,
-        })
-        .select()
-        .single();
+      // Prepare order items data for atomic function
+      const orderItemsData = draftData.items.map(item => ({
+        product_id: item.product_id,
+        variant_id: item.variant_id || null,
+        name: item.name,
+        qty: item.qty,
+        unit_price: item.unit_price,
+        line_total: item.line_total || (item.unit_price * item.qty)
+      }));
 
-      if (orderError || !newOrder) {
+      // Use atomic function to create order with transaction safety
+      const { data: orderId, error: orderError } = await supabase.rpc('create_order_atomic', {
+        p_tenant_id: tenant.id,
+        p_order_number: draftData.order_number,
+        p_customer_id: draftData.customer_id || null,
+        p_customer_name: draftData.customer_name,
+        p_customer_phone: draftData.customer_phone,
+        p_customer_email: draftData.customer_email || null,
+        p_shipping_address: draftData.shipping_address,
+        p_subtotal: draftData.subtotal,
+        p_discount_total: draftData.discount_total || 0,
+        p_delivery_fee: draftData.delivery_fee || 0,
+        p_total: draftData.total,
+        p_payment_method: 'razorpay',
+        p_payment_status: 'paid',
+        p_status: 'confirmed',
+        p_delivery_zone_id: draftData.delivery_zone_id || null,
+        p_delivery_slot_id: draftData.delivery_slot_id || null,
+        p_delivery_option: draftData.delivery_option || 'standard',
+        p_coupon_id: draftData.coupon_id || null,
+        p_coupon_code: draftData.coupon_code || null,
+        p_razorpay_order_id: razorpay_order_id,
+        p_razorpay_payment_id: razorpay_payment_id,
+        p_order_items: orderItemsData as any,
+        p_cart_id: paymentIntent.cart_id
+      });
+
+      if (orderError || !orderId) {
         console.error('Failed to create order:', orderError);
         return new Response(
-          JSON.stringify({ success: false, error: 'Failed to create order' }),
+          JSON.stringify({ 
+            success: false, 
+            error: orderError?.message || 'Failed to create order' 
+          }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      console.log('Order created:', newOrder.id);
+      console.log('Order created atomically:', orderId);
 
-      // Create order items, reduce stock, and create inventory movements
-      for (const item of draftData.items) {
-        await supabase.from('order_items').insert({
+      // Record coupon redemption if applicable
+      if (draftData.coupon_id) {
+        await supabase.from('coupon_redemptions').insert({
           tenant_id: tenant.id,
-          order_id: newOrder.id,
-          product_id: item.product_id,
-          name: item.name,
-          qty: item.qty,
-          unit_price: item.unit_price,
-          line_total: item.unit_price * item.qty,
+          coupon_id: draftData.coupon_id,
+          order_id: orderId,
+          customer_id: draftData.customer_id || null,
+          discount_amount: draftData.discount_total || 0
         });
-
-        // Create inventory movement for ledger tracking
-        await supabase.from('inventory_movements').insert({
-          tenant_id: tenant.id,
-          product_id: item.product_id,
-          movement_type: 'sale',
-          quantity: -item.qty,
-          reference_type: 'order',
-          reference_id: newOrder.id,
-          notes: `Online order ${draftData.order_number}`,
+        
+        await supabase.rpc('increment_coupon_usage', {
+          p_coupon_id: draftData.coupon_id
         });
-
-        // Reduce stock
-        const newStock = Math.max(0, (item.stock_qty || 0) - item.qty);
-        await supabase
-          .from('products')
-          .update({ stock_qty: newStock })
-          .eq('id', item.product_id);
       }
-
-      // Mark cart as converted
-      await supabase
-        .from('carts')
-        .update({ status: 'converted' })
-        .eq('id', paymentIntent.cart_id);
 
       // Create delivery assignment for grocery stores
       const { data: tenantInfo } = await supabase
