@@ -64,7 +64,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .from('tenants')
       .select('*')
       .eq('id', tenantId)
-      .is('deleted_at', null) // Exclude deleted tenants
       .maybeSingle();
     
     if (!error && data) {
@@ -75,15 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshProfile = async () => {
     if (user) {
       const profileData = await fetchProfile(user.id);
-      
-      // Get primary tenant from user_tenants
-      const { data: primaryTenant } = await supabase
-        .rpc('get_user_primary_tenant_id');
-      
-      if (primaryTenant) {
-        await fetchTenant(primaryTenant);
-      } else if (profileData?.tenant_id) {
-        // Fallback to profile.tenant_id for backward compatibility
+      if (profileData?.tenant_id) {
         await fetchTenant(profileData.tenant_id);
       }
     }
@@ -104,15 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           setTimeout(async () => {
             const profileData = await fetchProfile(session.user.id);
-            
-            // Get primary tenant from user_tenants
-            const { data: primaryTenant } = await supabase
-              .rpc('get_user_primary_tenant_id');
-            
-            if (primaryTenant) {
-              await fetchTenant(primaryTenant);
-            } else if (profileData?.tenant_id) {
-              // Fallback to profile.tenant_id for backward compatibility
+            if (profileData?.tenant_id) {
               await fetchTenant(profileData.tenant_id);
             }
           }, 0);
@@ -129,14 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (session?.user) {
         fetchProfile(session.user.id).then(async (profileData) => {
-          // Get primary tenant from user_tenants
-          const { data: primaryTenant } = await supabase
-            .rpc('get_user_primary_tenant_id');
-          
-          if (primaryTenant) {
-            await fetchTenant(primaryTenant);
-          } else if (profileData?.tenant_id) {
-            // Fallback to profile.tenant_id for backward compatibility
+          if (profileData?.tenant_id) {
             await fetchTenant(profileData.tenant_id);
           }
           setLoading(false);

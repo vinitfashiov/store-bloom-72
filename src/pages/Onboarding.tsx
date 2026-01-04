@@ -155,25 +155,11 @@ export default function Onboarding() {
         return;
       }
 
-      // Create user_tenants association (multi-store support)
-      const { error: userTenantError } = await supabase
-        .from('user_tenants')
-        .insert({
-          user_id: user.id,
-          tenant_id: tenant.id,
-          is_primary: true // First store is always primary
-        });
-
-      if (userTenantError) {
-        console.error('Error creating user-tenant association:', userTenantError);
-        throw userTenantError;
-      }
-
-      // Update profile onboarding status (keep tenant_id for backward compatibility)
+      // Update profile with tenant_id and onboarding status
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
-          tenant_id: tenant.id, // Keep for backward compatibility
+          tenant_id: tenant.id,
           onboarding_completed: true
         })
         .eq('id', user.id);
