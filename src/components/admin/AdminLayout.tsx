@@ -9,8 +9,10 @@ interface AdminLayoutProps {
   children: ReactNode;
   storeName: string;
   storeSlug: string;
+  tenantId: string;
   businessType?: 'ecommerce' | 'grocery';
   onSignOut: () => void;
+  onTenantChange: (tenantId: string) => void;
   isTrialExpired: boolean;
   onUpgrade: () => void;
 }
@@ -19,8 +21,10 @@ export function AdminLayout({
   children, 
   storeName, 
   storeSlug, 
+  tenantId,
   businessType,
   onSignOut,
+  onTenantChange,
   isTrialExpired,
   onUpgrade
 }: AdminLayoutProps) {
@@ -29,7 +33,14 @@ export function AdminLayout({
       <AdminSidebar storeSlug={storeSlug} storeName={storeName} businessType={businessType} />
       
       <div className="flex-1 flex flex-col min-w-0">
-        <AdminHeader storeName={storeName} storeSlug={storeSlug} businessType={businessType} onSignOut={onSignOut} />
+        <AdminHeader 
+          storeName={storeName} 
+          storeSlug={storeSlug} 
+          tenantId={tenantId}
+          businessType={businessType} 
+          onSignOut={onSignOut}
+          onTenantChange={onTenantChange}
+        />
         
         {isTrialExpired && (
           <div className="p-3 md:p-4">

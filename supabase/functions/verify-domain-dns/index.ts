@@ -71,8 +71,63 @@ serve(async (req) => {
     console.log(`A records found: ${aRecords.map(r => r.data).join(', ')}`);
     console.log(`Has correct A record: ${hasCorrectARecord}`);
 
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get domain info for tenant_id
+    const { data: domainInfo } = await supabase
+      .from('custom_domains')
+      .select('tenant_id, verification_attempts')
+      .eq('id', domain_id)
+      .single();
+
+    // Log verification attempt
+    if (domainInfo) {
+      await supabase
+        .from('domain_verification_logs')
+        .insert({
+          domain_id,
+          tenant_id: domainInfo.tenant_id,
+          verified: hasCorrectARecord,
+          dns_records: { a_records: aRecords.map(r => r.data) },
+          error_message: hasCorrectARecord ? null : 'A record does not match expected IP',
+        });
+
+      // Update verification attempts
+      await supabase
+        .from('custom_domains')
+        .update({
+          verification_attempts: (domainInfo.verification_attempts || 0) + 1,
+          last_verification_at: new Date().toISOString(),
+          verification_error: hasCorrectARecord ? null : 'A record does not match expected IP',
+        })
+        .eq('id', domain_id);
+    }
+
     if (!hasCorrectARecord) {
       const currentIps = aRecords.map(r => r.data).join(', ') || 'none';
+      
+      // Schedule retry if auto_verify is enabled
+      if (domainInfo) {
+        const { data: domainSettings } = await supabase
+          .from('custom_domains')
+          .select('auto_verify')
+          .eq('id', domain_id)
+          .single();
+
+        if (domainSettings?.auto_verify) {
+          await supabase.rpc('schedule_operation_retry', {
+            p_tenant_id: domainInfo.tenant_id,
+            p_operation_type: 'domain_verify',
+            p_operation_id: domain_id,
+            p_payload: { domain, domain_id },
+            p_error_message: `A records point to ${currentIps} instead of ${EXPECTED_IP}`,
+          });
+        }
+      }
+
       return new Response(
         JSON.stringify({
           verified: false,
@@ -87,13 +142,12 @@ serve(async (req) => {
     }
 
     // DNS verified - update the domain status to active
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     const { error: updateError } = await supabase
       .from('custom_domains')
-      .update({ status: 'active' })
+      .update({ 
+        status: 'active',
+        verification_error: null,
+      })
       .eq('id', domain_id);
 
     if (updateError) {

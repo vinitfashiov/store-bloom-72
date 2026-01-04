@@ -68,6 +68,7 @@ const storeNavItems = [
 ];
 
 const settingsNavItems = [
+  { href: '/dashboard/stores', label: 'My Stores', icon: Store },
   { href: '/dashboard/domains', label: 'Custom Domains', icon: ExternalLink },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
   { href: '/dashboard/integrations', label: 'Integrations', icon: Plug },

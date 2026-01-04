@@ -36,6 +36,7 @@ import AdminDeliveryBoys from './admin/AdminDeliveryBoys';
 import AdminDeliveryAreas from './admin/AdminDeliveryAreas';
 import AdminDeliveryOrders from './admin/AdminDeliveryOrders';
 import AdminDeliveryPayouts from './admin/AdminDeliveryPayouts';
+import AdminStores from './admin/AdminStores';
 
 // Wrapper to pass productId from route params
 function ProductFormWrapper({ tenantId, disabled }: { tenantId: string; disabled: boolean }) {
@@ -75,6 +76,12 @@ export default function Dashboard() {
     navigate('/dashboard/upgrade');
   };
 
+  const handleTenantChange = async (newTenantId: string) => {
+    // Refresh profile and tenant
+    await refreshProfile();
+    window.location.reload(); // Reload to get new tenant context
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen gradient-hero flex items-center justify-center">
@@ -94,13 +101,16 @@ export default function Dashboard() {
     <AdminLayout
       storeName={tenant.store_name}
       storeSlug={tenant.store_slug}
+      tenantId={tenant.id}
       businessType={tenant.business_type}
       onSignOut={handleSignOut}
+      onTenantChange={handleTenantChange}
       isTrialExpired={isTrialExpired}
       onUpgrade={handleUpgrade}
     >
       <Routes>
         <Route index element={<AdminDashboard tenant={tenant} isTrialExpired={isTrialExpired} />} />
+        <Route path="stores" element={<AdminStores />} />
         <Route path="products" element={<AdminProducts tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="products/new" element={<AdminProductForm tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="products/:productId" element={<ProductFormWrapper tenantId={tenant.id} disabled={isTrialExpired} />} />
