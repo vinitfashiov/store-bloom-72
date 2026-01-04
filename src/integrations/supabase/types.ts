@@ -2607,10 +2607,58 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_stock_availability: {
+        Args: { p_items: Json }
+        Returns: {
+          available_qty: number
+          is_available: boolean
+          product_id: string
+          requested_qty: number
+          variant_id: string
+        }[]
+      }
       delete_tenant: { Args: { target_tenant_id: string }; Returns: boolean }
+      get_dashboard_stats: {
+        Args: { p_date_from?: string; p_date_to?: string; p_tenant_id: string }
+        Returns: {
+          avg_order_value: number
+          low_stock_products: number
+          pending_orders: number
+          total_customers: number
+          total_orders: number
+          total_revenue: number
+        }[]
+      }
       get_delivery_boy_tenant_id: {
         Args: { delivery_boy_uuid: string }
         Returns: string
+      }
+      get_paginated_orders: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_payment_status?: string
+          p_status?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          orders: Json
+          total_count: number
+        }[]
+      }
+      get_paginated_products: {
+        Args: {
+          p_brand_id?: string
+          p_category_id?: string
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_tenant_id: string
+        }
+        Returns: {
+          products: Json
+          total_count: number
+        }[]
       }
       get_tenant_id_by_domain: {
         Args: { custom_domain: string }
@@ -2633,6 +2681,7 @@ export type Database = {
           trial_ends_at: string
         }[]
       }
+      reduce_stock_atomic: { Args: { p_items: Json }; Returns: boolean }
       set_primary_tenant: {
         Args: { target_tenant_id: string }
         Returns: boolean
