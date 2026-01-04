@@ -49,6 +49,10 @@ function isPlatformDomain(hostname: string): boolean {
   );
 }
 
+// Cache for domain lookups (5 minutes)
+const domainCache = new Map<string, { tenant: Tenant | null; expiresAt: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 interface CustomDomainProviderProps {
   children: ReactNode;
 }
@@ -63,74 +67,69 @@ export function CustomDomainProvider({ children }: CustomDomainProviderProps) {
     const resolveTenant = async () => {
       const hostname = window.location.hostname.toLowerCase();
       
-      // Check if this is a custom domain (not a platform domain)
       if (!isPlatformDomain(hostname)) {
         setIsCustomDomain(true);
         
-        // Look up tenant by custom domain
-        const { data: domainData, error: domainError } = await supabase
+        // Check cache first
+        const cached = domainCache.get(hostname);
+        if (cached && cached.expiresAt > Date.now()) {
+          setTenant(cached.tenant);
+          setLoading(false);
+          return;
+        }
+        
+        // Try exact match
+        let domainData = null;
+        const { data: exactMatch } = await supabase
           .from('custom_domains')
           .select('tenant_id')
           .eq('domain', hostname)
           .eq('status', 'active')
           .maybeSingle();
 
-        if (domainError || !domainData) {
-          // Also try with www prefix removed
+        if (exactMatch) {
+          domainData = exactMatch;
+        } else {
+          // Try without www
           const withoutWww = hostname.replace(/^www\./, '');
-          const { data: altDomainData } = await supabase
+          const { data: wwwMatch } = await supabase
             .from('custom_domains')
             .select('tenant_id')
             .eq('domain', withoutWww)
             .eq('status', 'active')
             .maybeSingle();
-
-          if (!altDomainData) {
-            setError('Domain not configured');
-            setLoading(false);
-            return;
-          }
           
-          // Fetch tenant
-          const { data: tenantData } = await supabase
-            .from('tenants')
-            .select('*')
-            .eq('id', altDomainData.tenant_id)
-            .eq('is_active', true)
-            .maybeSingle();
+          domainData = wwwMatch;
+        }
 
-          if (tenantData) {
-            // Check trial expiry
-            const trialEnd = new Date(tenantData.trial_ends_at);
-            const now = new Date();
-            if (tenantData.plan === 'trial' && trialEnd < now) {
-              setError('This store is currently unavailable');
-            } else {
-              setTenant(tenantData as Tenant);
-            }
+        if (!domainData) {
+          setError('Domain not configured');
+          setLoading(false);
+          domainCache.set(hostname, { tenant: null, expiresAt: Date.now() + CACHE_TTL });
+          return;
+        }
+        
+        // Fetch tenant
+        const { data: tenantData } = await supabase
+          .from('tenants')
+          .select('*')
+          .eq('id', domainData.tenant_id)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (tenantData) {
+          const trialEnd = new Date(tenantData.trial_ends_at);
+          const now = new Date();
+          if (tenantData.plan === 'trial' && trialEnd < now) {
+            setError('This store is currently unavailable');
+            domainCache.set(hostname, { tenant: null, expiresAt: Date.now() + CACHE_TTL });
           } else {
-            setError('Store not found');
+            setTenant(tenantData as Tenant);
+            domainCache.set(hostname, { tenant: tenantData as Tenant, expiresAt: Date.now() + CACHE_TTL });
           }
         } else {
-          // Fetch tenant
-          const { data: tenantData } = await supabase
-            .from('tenants')
-            .select('*')
-            .eq('id', domainData.tenant_id)
-            .eq('is_active', true)
-            .maybeSingle();
-
-          if (tenantData) {
-            const trialEnd = new Date(tenantData.trial_ends_at);
-            const now = new Date();
-            if (tenantData.plan === 'trial' && trialEnd < now) {
-              setError('This store is currently unavailable');
-            } else {
-              setTenant(tenantData as Tenant);
-            }
-          } else {
-            setError('Store not found');
-          }
+          setError('Store not found');
+          domainCache.set(hostname, { tenant: null, expiresAt: Date.now() + CACHE_TTL });
         }
       }
       

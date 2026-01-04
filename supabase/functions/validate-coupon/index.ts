@@ -1,11 +1,15 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getSupabaseClient, getTenantBySlug, successResponse, errorResponse } from "../_shared/utils.ts";
+import { monitor, createContext } from "../_shared/monitoring.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-Deno.serve(async (req) => {
+serve(async (req) => {
+  const context = createContext('validate-coupon', req);
+  
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -15,30 +19,20 @@ Deno.serve(async (req) => {
     const { store_slug, coupon_code, cart_subtotal, customer_id } = await req.json();
 
     if (!store_slug || !coupon_code) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields', valid: false }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return errorResponse('Missing required fields', 400);
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = getSupabaseClient();
 
-    // Get tenant by slug
-    const { data: tenant, error: tenantError } = await supabase
-      .from('tenants')
-      .select('id, is_active')
-      .eq('store_slug', store_slug)
-      .eq('is_active', true)
-      .maybeSingle();
+    // Get tenant (cached)
+    const tenant = await monitor.trackPerformance(
+      'get_tenant',
+      () => getTenantBySlug(supabase, store_slug),
+      { ...context, store_slug }
+    );
 
-    if (tenantError || !tenant) {
-      console.error('Tenant not found:', tenantError);
-      return new Response(
-        JSON.stringify({ error: 'Store not found', valid: false }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!tenant) {
+      return errorResponse('Store not found', 404);
     }
 
     // Get coupon by code
@@ -50,105 +44,99 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (couponError || !coupon) {
-      console.log('Coupon not found:', coupon_code);
-      return new Response(
-        JSON.stringify({ error: 'Invalid coupon code', valid: false }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return successResponse({ error: 'Invalid coupon code', valid: false });
     }
 
     // Check if coupon is active
     if (!coupon.is_active) {
-      return new Response(
-        JSON.stringify({ error: 'Coupon is inactive', valid: false }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return successResponse({ error: 'Coupon is not active', valid: false });
     }
 
-    // Check date validity
-    const now = new Date();
-    if (coupon.starts_at && new Date(coupon.starts_at) > now) {
-      return new Response(
-        JSON.stringify({ error: 'Coupon is not yet active', valid: false }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Check expiry date
+    if (coupon.expires_at) {
+      const expiryDate = new Date(coupon.expires_at);
+      const now = new Date();
+      if (expiryDate < now) {
+        return successResponse({ error: 'Coupon has expired', valid: false });
+      }
     }
 
-    if (coupon.ends_at && new Date(coupon.ends_at) < now) {
-      return new Response(
-        JSON.stringify({ error: 'Coupon has expired', valid: false }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Check start date
+    if (coupon.starts_at) {
+      const startDate = new Date(coupon.starts_at);
+      const now = new Date();
+      if (startDate > now) {
+        return successResponse({ error: 'Coupon is not yet active', valid: false });
+      }
     }
 
-    // Check usage limit
-    if (coupon.usage_limit !== null && coupon.used_count >= coupon.usage_limit) {
-      return new Response(
-        JSON.stringify({ error: 'Coupon usage limit reached', valid: false }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Check minimum purchase amount
+    if (coupon.min_purchase_amount && cart_subtotal < coupon.min_purchase_amount) {
+      return successResponse({
+        error: `Minimum purchase amount of ₹${coupon.min_purchase_amount} required`,
+        valid: false,
+      });
     }
 
-    // Check minimum cart amount
-    const subtotal = parseFloat(cart_subtotal) || 0;
-    const minCartAmount = parseFloat(coupon.min_cart_amount) || 0;
-    if (subtotal < minCartAmount) {
-      return new Response(
-        JSON.stringify({ 
-          error: `Minimum cart amount is ₹${minCartAmount}`, 
+    // Check usage limits (if customer_id provided)
+    if (customer_id && coupon.usage_limit_per_customer) {
+      const { count } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('customer_id', customer_id)
+        .eq('coupon_code', coupon.code);
+
+      if (count && count >= coupon.usage_limit_per_customer) {
+        return successResponse({
+          error: 'You have already used this coupon',
           valid: false,
-          min_cart_amount: minCartAmount
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        });
+      }
+    }
+
+    // Check total usage limit
+    if (coupon.usage_limit) {
+      const { count } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .eq('coupon_code', coupon.code);
+
+      if (count && count >= coupon.usage_limit) {
+        return successResponse({
+          error: 'Coupon usage limit reached',
+          valid: false,
+        });
+      }
     }
 
     // Calculate discount
-    let discountAmount = 0;
-    if (coupon.type === 'percent') {
-      discountAmount = (subtotal * parseFloat(coupon.value)) / 100;
-      // Apply max discount cap if set
-      if (coupon.max_discount_amount && discountAmount > parseFloat(coupon.max_discount_amount)) {
-        discountAmount = parseFloat(coupon.max_discount_amount);
+    let discount_amount = 0;
+    if (coupon.discount_type === 'percentage') {
+      discount_amount = (cart_subtotal * coupon.discount_value) / 100;
+      if (coupon.max_discount_amount) {
+        discount_amount = Math.min(discount_amount, coupon.max_discount_amount);
       }
     } else {
-      // Fixed discount
-      discountAmount = parseFloat(coupon.value);
+      discount_amount = coupon.discount_value;
     }
 
-    // Ensure discount doesn't exceed subtotal
-    if (discountAmount > subtotal) {
-      discountAmount = subtotal;
-    }
+    discount_amount = Math.min(discount_amount, cart_subtotal); // Don't exceed cart total
 
-    console.log('Coupon validated:', {
-      code: coupon.code,
-      type: coupon.type,
-      value: coupon.value,
-      subtotal,
-      discountAmount
+    return successResponse({
+      valid: true,
+      coupon: {
+        code: coupon.code,
+        discount_type: coupon.discount_type,
+        discount_value: coupon.discount_value,
+        discount_amount: Math.round(discount_amount * 100) / 100,
+        description: coupon.description,
+      },
     });
 
-    return new Response(
-      JSON.stringify({
-        valid: true,
-        coupon_id: coupon.id,
-        coupon_code: coupon.code,
-        coupon_type: coupon.type,
-        coupon_value: coupon.value,
-        discount_amount: discountAmount,
-        message: coupon.type === 'percent' 
-          ? `${coupon.value}% off applied!` 
-          : `₹${coupon.value} off applied!`
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
   } catch (error) {
-    console.error('Error validating coupon:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error', valid: false }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    await monitor.logError(error, context);
+    return errorResponse('Internal server error', 500, error);
   }
 });

@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.shiprocket-webhook]
 verify_jwt = false
+
+[functions.log-error]
+verify_jwt = false
+
+[functions.log-performance]
+verify_jwt = false

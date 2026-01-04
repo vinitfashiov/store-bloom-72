@@ -124,12 +124,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { error } = await supabase.rpc('set_primary_tenant', { target_tenant_id: tenantId });
     
     if (!error) {
+      // Refresh profile first to get updated tenant_id from database
+      await refreshProfile();
       await fetchTenant(tenantId);
       await fetchUserTenants();
-      // Update profile state with new tenant_id
-      if (profile) {
-        setProfile({ ...profile, tenant_id: tenantId });
-      }
     }
   };
 
