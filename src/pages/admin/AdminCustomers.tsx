@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,18 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Users, Search, Eye, MapPin, ShoppingBag } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Users, Search, Eye, MapPin, ShoppingBag, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
-
-interface Customer {
-  id: string;
-  name: string;
-  phone: string | null;
-  email: string;
-  created_at: string;
-  order_count?: number;
-  total_spent?: number;
-}
+import { useAdminCustomers } from '@/hooks/useOptimizedQueries';
+import { PaginationControls, usePagination } from '@/components/ui/pagination-controls';
+import { useDebouncedCallback } from '@/hooks/useDebounce';
 
 interface CustomerAddress {
   id: string;
@@ -44,48 +38,38 @@ interface AdminCustomersProps {
 }
 
 export default function AdminCustomers({ tenantId }: AdminCustomersProps) {
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const { page, pageSize, setPage, setPageSize } = usePagination(1, 25);
+  
+  const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  const fetchCustomers = async () => {
-    setLoading(true);
-    const { data: customersData } = await supabase
-      .from('customers')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
+  const { data, isLoading, isFetching, refetch } = useAdminCustomers({
+    tenantId,
+    search: debouncedSearch || undefined,
+    page,
+    limit: pageSize,
+  });
 
-    if (customersData) {
-      // Get order stats for each customer
-      const customersWithStats = await Promise.all(
-        customersData.map(async (customer) => {
-          const { data: orderData } = await supabase
-            .from('orders')
-            .select('total, payment_status')
-            .eq('tenant_id', tenantId)
-            .eq('customer_id', customer.id);
+  const customers = data?.customers || [];
+  const totalPages = data?.totalPages || 1;
+  const totalItems = data?.total || 0;
 
-          const paidOrders = orderData?.filter(o => o.payment_status === 'paid') || [];
-          return {
-            ...customer,
-            order_count: orderData?.length || 0,
-            total_spent: paidOrders.reduce((sum, o) => sum + Number(o.total), 0)
-          };
-        })
-      );
-      setCustomers(customersWithStats);
-    }
-    setLoading(false);
+  const debouncedSetSearch = useDebouncedCallback((value: string) => {
+    setDebouncedSearch(value);
+    setPage(1);
+  }, 300);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    debouncedSetSearch(value);
   };
 
-  useEffect(() => { fetchCustomers(); }, [tenantId]);
-
-  const openCustomerDetail = async (customer: Customer) => {
+  const openCustomerDetail = async (customer: any) => {
     setSelectedCustomer(customer);
     setDetailLoading(true);
 
@@ -108,27 +92,32 @@ export default function AdminCustomers({ tenantId }: AdminCustomersProps) {
     setDetailLoading(false);
   };
 
-  const filteredCustomers = customers.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search)
-  );
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-display font-bold">Customers</h1>
-          <p className="text-muted-foreground">View customer information and order history</p>
+          <p className="text-muted-foreground">
+            View customer information and order history
+            {totalItems > 0 && <span className="ml-1">({totalItems.toLocaleString()} customers)</span>}
+          </p>
         </div>
+        <Button 
+          variant="outline" 
+          size="icon"
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          <RefreshCw className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+        </Button>
       </div>
 
-      <div className="relative">
+      <div className="relative max-w-sm">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Search by name, email, or phone..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+          value={searchQuery}
+          onChange={handleSearchChange}
           className="pl-10"
         />
       </div>
@@ -195,7 +184,7 @@ export default function AdminCustomers({ tenantId }: AdminCustomersProps) {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <ShoppingBag className="w-4 h-4" /> Recent Orders ({selectedCustomer.order_count})
+                        <ShoppingBag className="w-4 h-4" /> Recent Orders
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -247,52 +236,67 @@ export default function AdminCustomers({ tenantId }: AdminCustomersProps) {
 
       <Card>
         <CardContent className="p-0">
-          {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading...</div>
-          ) : filteredCustomers.length === 0 ? (
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+            </div>
+          ) : customers.length === 0 ? (
             <div className="p-12 text-center">
               <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
               <h3 className="font-medium mb-2">No customers found</h3>
-              <p className="text-sm text-muted-foreground">Customers will appear here after they sign up</p>
+              <p className="text-sm text-muted-foreground">
+                {searchQuery ? 'Try a different search term' : 'Customers will appear here after they sign up'}
+              </p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Orders</TableHead>
-                  <TableHead>Total Spent</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredCustomers.map(customer => (
-                  <TableRow key={customer.id}>
-                    <TableCell>
-                      <div>
-                        <span className="font-medium">{customer.name}</span>
-                        <p className="text-xs text-muted-foreground">{customer.email}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{customer.phone || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{customer.order_count}</Badge>
-                    </TableCell>
-                    <TableCell>₹{(customer.total_spent || 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(customer.created_at), 'PP')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openCustomerDetail(customer)}>
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Joined</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {customers.map((customer: any) => (
+                      <TableRow key={customer.id}>
+                        <TableCell>
+                          <div>
+                            <span className="font-medium">{customer.name}</span>
+                            <p className="text-xs text-muted-foreground">{customer.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{customer.phone || '-'}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(customer.created_at), 'PP')}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => openCustomerDetail(customer)}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              <div className="p-4 border-t">
+                <PaginationControls
+                  currentPage={page}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                  pageSizeOptions={[25, 50, 100]}
+                />
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

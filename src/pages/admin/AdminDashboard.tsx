@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   TrendingUp,
   ShoppingBag,
@@ -13,8 +12,10 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
+import { useDashboardStats } from '@/hooks/useOptimizedQueries';
 
 interface Tenant {
   id: string;
@@ -31,33 +32,26 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboardProps) {
-  const [stats, setStats] = useState({ revenue: 0, orders: 0, products: 0, customers: 0 });
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      const [ordersRes, productsRes] = await Promise.all([
-        supabase.from('orders').select('total, status').eq('tenant_id', tenant.id),
-        supabase.from('products').select('id').eq('tenant_id', tenant.id).eq('is_active', true)
-      ]);
-
-      const orders = ordersRes.data || [];
-      const revenue = orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + Number(o.total), 0);
-
-      setStats({
-        revenue,
-        orders: orders.length,
-        products: productsRes.data?.length || 0,
-        customers: new Set(orders.map(o => o.status)).size // Placeholder
-      });
-    };
-
-    fetchStats();
-  }, [tenant.id]);
+  const { data: stats, isLoading, refetch, isFetching } = useDashboardStats(tenant.id);
 
   const getDaysRemaining = () => {
     const now = new Date();
     const trialEnd = new Date(tenant.trial_ends_at);
     return Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+  };
+
+  const formatCurrency = (value: number) => {
+    if (value >= 10000000) return `₹${(value / 10000000).toFixed(2)}Cr`;
+    if (value >= 100000) return `₹${(value / 100000).toFixed(2)}L`;
+    if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
+    return `₹${value.toFixed(2)}`;
+  };
+
+  const formatNumber = (value: number) => {
+    if (value >= 10000000) return `${(value / 10000000).toFixed(1)}Cr`;
+    if (value >= 100000) return `${(value / 100000).toFixed(1)}L`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+    return value.toLocaleString();
   };
 
   return (
@@ -93,6 +87,19 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
       )}
 
       {/* Stats Grid */}
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-lg font-semibold">Overview (Last 30 Days)</h2>
+        <Button 
+          variant="ghost" 
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -100,7 +107,13 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
             <TrendingUp className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-display font-bold">₹{stats.revenue.toFixed(2)}</div>
+            {isLoading ? (
+              <Skeleton className="h-8 w-24" />
+            ) : (
+              <div className="text-2xl font-display font-bold">
+                {formatCurrency(Number(stats?.total_revenue) || 0)}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -110,7 +123,20 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
             <ShoppingBag className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-display font-bold">{stats.orders}</div>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-display font-bold">
+                  {formatNumber(Number(stats?.total_orders) || 0)}
+                </span>
+                {Number(stats?.pending_orders) > 0 && (
+                  <Badge variant="outline" className="text-warning border-warning">
+                    {stats?.pending_orders} pending
+                  </Badge>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -120,7 +146,18 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
             <Package className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-display font-bold">{stats.products}</div>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-display font-bold">Active</span>
+                {Number(stats?.low_stock_products) > 0 && (
+                  <Badge variant="destructive">
+                    {stats?.low_stock_products} low stock
+                  </Badge>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -130,10 +167,31 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-display font-bold">{stats.customers}</div>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-display font-bold">
+                {formatNumber(Number(stats?.total_customers) || 0)}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Avg Order Value */}
+      {stats && Number(stats.avg_order_value) > 0 && (
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Average Order Value</p>
+                <p className="text-xl font-bold">{formatCurrency(Number(stats.avg_order_value))}</p>
+              </div>
+              <TrendingUp className="w-8 h-8 text-success" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -171,7 +229,6 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
               </Link>
             </Button>
           </CardContent>
-
         </Card>
 
         <Card>
@@ -189,19 +246,9 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
             </div>
 
             {/* Add Products */}
-            <div
-              className={`flex items-center gap-2 p-3 rounded-lg ${stats.products > 0 ? "bg-success/10" : "bg-muted"
-                }`}
-            >
-              {stats.products > 0 ? (
-                <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
-              ) : (
-                <div className="w-5 h-5 rounded-full border-2 border-muted-foreground shrink-0" />
-              )}
-              <span
-                className={`text-sm leading-tight ${stats.products > 0 ? "text-success font-medium" : ""
-                  }`}
-              >
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-success/10">
+              <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
+              <span className="text-sm font-medium text-success leading-tight">
                 Add Products
               </span>
             </div>
@@ -213,12 +260,15 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
             </div>
 
             {/* First Sale */}
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
-              <div className="w-5 h-5 rounded-full border-2 border-muted-foreground shrink-0" />
-              <span className="text-sm leading-tight">First Sale</span>
+            <div className={`flex items-center gap-2 p-3 rounded-lg ${Number(stats?.total_orders) > 0 ? 'bg-success/10' : 'bg-muted'}`}>
+              {Number(stats?.total_orders) > 0 ? (
+                <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
+              ) : (
+                <div className="w-5 h-5 rounded-full border-2 border-muted-foreground shrink-0" />
+              )}
+              <span className={`text-sm leading-tight ${Number(stats?.total_orders) > 0 ? 'text-success font-medium' : ''}`}>First Sale</span>
             </div>
           </CardContent>
-
         </Card>
       </div>
     </div>

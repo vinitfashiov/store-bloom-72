@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StoreHeader } from '@/components/storefront/StoreHeader';
 import { StoreFooter } from '@/components/storefront/StoreFooter';
@@ -25,67 +24,43 @@ import { GroceryDesktopCategoryGrid } from '@/components/storefront/grocery/Groc
 import { GroceryDesktopProductSection } from '@/components/storefront/grocery/GroceryDesktopProductSection';
 import { useCart } from '@/hooks/useCart';
 import { useCustomDomain } from '@/contexts/CustomDomainContext';
+import { 
+  useStoreData, 
+  useStoreSettings, 
+  useStoreBanners, 
+  useStoreCategories, 
+  useStoreBrands,
+  useStoreProducts
+} from '@/hooks/useOptimizedQueries';
 import { toast } from 'sonner';
 import { Store } from 'lucide-react';
 
-interface Tenant {
-  id: string;
-  store_name: string;
-  store_slug: string;
-  business_type: 'ecommerce' | 'grocery';
-  plan: 'trial' | 'pro';
-  trial_ends_at: string;
-  is_active: boolean;
-  address: string | null;
-  phone: string | null;
-}
+// Memoized loading skeleton
+const LoadingSkeleton = memo(() => (
+  <div className="min-h-screen bg-white">
+    <div className="p-4"><Skeleton className="h-16 w-full rounded-xl" /></div>
+    <div className="p-4"><Skeleton className="h-40 w-full rounded-2xl" /></div>
+    <div className="p-4 grid grid-cols-4 gap-3">
+      {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <Skeleton key={i} className="aspect-square rounded-xl" />)}
+    </div>
+  </div>
+));
 
-interface StoreSettings {
-  logo_path: string | null;
-  favicon_path: string | null;
-  website_title: string | null;
-  website_description: string | null;
-  store_email: string | null;
-  store_phone: string | null;
-  store_address: string | null;
-}
-
-interface Banner {
-  id: string;
-  title: string;
-  subtitle: string | null;
-  image_path: string;
-  cta_text: string | null;
-  cta_url: string | null;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  image_url?: string | null;
-}
-
-interface Brand {
-  id: string;
-  name: string;
-  slug: string;
-  logo_path: string | null;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  compare_at_price: number | null;
-  images: string[];
-  stock_qty: number;
-  has_variants?: boolean;
-  total_variant_stock?: number;
-  category: { name: string } | null;
-  brand?: { name: string } | null;
-}
+// Error state component
+const ErrorState = memo(({ error }: { error: string }) => (
+  <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
+    <Card className="max-w-md w-full text-center">
+      <CardContent className="py-12">
+        <div className="w-16 h-16 rounded-2xl bg-neutral-100 flex items-center justify-center mx-auto mb-4">
+          <Store className="w-8 h-8 text-neutral-400" />
+        </div>
+        <h1 className="text-2xl font-serif font-semibold mb-2">{error}</h1>
+        <p className="text-neutral-500 mb-6">The store you're looking for doesn't exist or is currently unavailable.</p>
+        <Link to="/"><Button>Go Home</Button></Link>
+      </CardContent>
+    </Card>
+  </div>
+));
 
 export default function StoreHome() {
   const { slug: urlSlug } = useParams<{ slug: string }>();
@@ -95,90 +70,36 @@ export default function StoreHome() {
     ? customDomain.tenant.store_slug 
     : urlSlug;
   
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
-  const [banners, setBanners] = useState<Banner[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [brands, setBrands] = useState<Brand[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [newProducts, setNewProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [addingProduct, setAddingProduct] = useState<string | null>(null);
 
+  // Optimized queries with caching
+  const { data: tenant, isLoading: tenantLoading, error: tenantError } = useStoreData(slug);
+  const { data: storeSettings } = useStoreSettings(tenant?.id);
+  const { data: banners = [] } = useStoreBanners(tenant?.id);
+  const { data: categories = [] } = useStoreCategories(tenant?.id, 12);
+  const { data: brands = [] } = useStoreBrands(tenant?.id, 8);
+  
+  const { data: productsData } = useStoreProducts({ 
+    tenantId: tenant?.id, 
+    limit: 10,
+    sortBy: 'created'
+  });
+  const products = productsData?.products || [];
+
+  const { data: newProductsData } = useStoreProducts({ 
+    tenantId: tenant?.id, 
+    limit: 10,
+    sortBy: 'created'
+  });
+  const newProducts = newProductsData?.products || [];
+
   const { itemCount, addToCart } = useCart(slug || '', tenant?.id || null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!slug) {
-        setError('Store not found');
-        setLoading(false);
-        return;
-      }
+  // Check trial expiry
+  const isExpired = tenant && tenant.plan === 'trial' && new Date(tenant.trial_ends_at) < new Date();
 
-      const { data: tenantData, error: tenantError } = await supabase
-        .from('tenants')
-        .select('*')
-        .eq('store_slug', slug)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (tenantError || !tenantData) {
-        setError('Store not found');
-        setLoading(false);
-        return;
-      }
-
-      const trialEnd = new Date(tenantData.trial_ends_at);
-      const now = new Date();
-      
-      if (tenantData.plan === 'trial' && trialEnd < now) {
-        setError('This store is currently unavailable');
-        setLoading(false);
-        return;
-      }
-
-      setTenant(tenantData as Tenant);
-
-      const [settingsRes, bannersRes, catsRes, brandsRes, prodsRes, newProdsRes] = await Promise.all([
-        supabase.from('store_settings').select('*').eq('tenant_id', tenantData.id).maybeSingle(),
-        supabase.from('store_banners').select('id, title, subtitle, image_path, cta_text, cta_url').eq('tenant_id', tenantData.id).eq('is_active', true).order('position', { ascending: true }),
-        supabase.from('categories').select('id, name, slug').eq('tenant_id', tenantData.id).eq('is_active', true).limit(12),
-        supabase.from('brands').select('id, name, slug, logo_path').eq('tenant_id', tenantData.id).eq('is_active', true).limit(8),
-        supabase.from('products').select('id, name, slug, price, compare_at_price, images, stock_qty, has_variants, category:categories(name), brand:brands(name)').eq('tenant_id', tenantData.id).eq('is_active', true).limit(10),
-        supabase.from('products').select('id, name, slug, price, compare_at_price, images, stock_qty, has_variants, category:categories(name), brand:brands(name)').eq('tenant_id', tenantData.id).eq('is_active', true).order('created_at', { ascending: false }).limit(10)
-      ]);
-
-      if (settingsRes.data) setStoreSettings(settingsRes.data);
-      setBanners(bannersRes.data || []);
-      setCategories(catsRes.data || []);
-      setBrands(brandsRes.data || []);
-
-      const calcStock = async (prods: any[]) => {
-        return Promise.all(prods.map(async (product: any) => {
-          if (product.has_variants) {
-            const { data: variants } = await supabase
-              .from('product_variants')
-              .select('stock_qty')
-              .eq('product_id', product.id)
-              .eq('is_active', true);
-            const totalStock = variants?.reduce((sum, v) => sum + (v.stock_qty || 0), 0) || 0;
-            return { ...product, total_variant_stock: totalStock };
-          }
-          return product;
-        }));
-      };
-
-      setProducts(await calcStock(prodsRes.data || []) as Product[]);
-      setNewProducts(await calcStock(newProdsRes.data || []) as Product[]);
-      setLoading(false);
-    };
-
-    fetchData();
-  }, [slug]);
-
-  const handleAddToCart = async (productId: string, price: number, quantity: number = 1) => {
+  const handleAddToCart = useCallback(async (productId: string, price: number, quantity: number = 1) => {
     setAddingProduct(productId);
     const success = await addToCart(productId, price, quantity);
     if (success) {
@@ -187,35 +108,20 @@ export default function StoreHome() {
       toast.error('Failed to add to cart');
     }
     setAddingProduct(null);
-  };
+  }, [addToCart]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="p-4"><Skeleton className="h-16 w-full rounded-xl" /></div>
-        <div className="p-4"><Skeleton className="h-40 w-full rounded-2xl" /></div>
-        <div className="p-4 grid grid-cols-4 gap-3">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <Skeleton key={i} className="aspect-square rounded-xl" />)}
-        </div>
-      </div>
-    );
+  // Loading state
+  if (tenantLoading) {
+    return <LoadingSkeleton />;
   }
 
-  if (error || !tenant) {
-    return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
-          <CardContent className="py-12">
-            <div className="w-16 h-16 rounded-2xl bg-neutral-100 flex items-center justify-center mx-auto mb-4">
-              <Store className="w-8 h-8 text-neutral-400" />
-            </div>
-            <h1 className="text-2xl font-serif font-semibold mb-2">{error || 'Store not found'}</h1>
-            <p className="text-neutral-500 mb-6">The store you're looking for doesn't exist or is currently unavailable.</p>
-            <Link to="/"><Button>Go Home</Button></Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  // Error states
+  if (tenantError || !tenant) {
+    return <ErrorState error="Store not found" />;
+  }
+
+  if (isExpired) {
+    return <ErrorState error="This store is currently unavailable" />;
   }
 
   const isGrocery = tenant.business_type === 'grocery';
@@ -256,7 +162,7 @@ export default function StoreHome() {
             <GroceryMembershipCard storeSlug={tenant.store_slug} />
             <GroceryProductSection
               title="Bestsellers"
-              products={products}
+              products={products as any}
               storeSlug={tenant.store_slug}
               onAddToCart={handleAddToCart}
               addingProductId={addingProduct}
@@ -271,7 +177,7 @@ export default function StoreHome() {
             />
             <GroceryProductSection
               title="New Arrivals"
-              products={newProducts}
+              products={newProducts as any}
               storeSlug={tenant.store_slug}
               onAddToCart={handleAddToCart}
               addingProductId={addingProduct}
@@ -280,46 +186,36 @@ export default function StoreHome() {
 
           {/* Desktop Layout - Blinkit Style */}
           <div className="hidden lg:block max-w-7xl mx-auto">
-            {/* Hero Banner */}
             <GroceryHeroBanner banners={banners} storeSlug={tenant.store_slug} />
-
-            {/* Promo Cards Row */}
             <GroceryPromoCards storeSlug={tenant.store_slug} />
-
-            {/* Category Grid - 2 rows */}
             <GroceryDesktopCategoryGrid 
               categories={categories} 
               storeSlug={tenant.store_slug}
             />
-
-            {/* Product Sections */}
             <GroceryDesktopProductSection
               title="Dairy, Bread & Eggs"
-              products={products}
+              products={products as any}
               storeSlug={tenant.store_slug}
               onAddToCart={handleAddToCart}
               addingProductId={addingProduct}
             />
-
             <GroceryDesktopProductSection
               title="Snacks & Munchies"
-              products={newProducts}
+              products={newProducts as any}
               storeSlug={tenant.store_slug}
               onAddToCart={handleAddToCart}
               addingProductId={addingProduct}
             />
-
             <GroceryDesktopProductSection
               title="Cold Drinks & Juices"
-              products={products.slice().reverse()}
+              products={products.slice().reverse() as any}
               storeSlug={tenant.store_slug}
               onAddToCart={handleAddToCart}
               addingProductId={addingProduct}
             />
-
             <GroceryDesktopProductSection
               title="Bestsellers"
-              products={[...products, ...newProducts].slice(0, 10)}
+              products={[...products, ...newProducts].slice(0, 10) as any}
               storeSlug={tenant.store_slug}
               onAddToCart={handleAddToCart}
               addingProductId={addingProduct}
@@ -371,7 +267,7 @@ export default function StoreHome() {
       <ProductSection
         title="Best Sellers"
         subtitle="Top picks our customers can't get enough of — for good reason. They're equal parts stylish and versatile!"
-        products={products}
+        products={products as any}
         storeSlug={tenant.store_slug}
         onAddToCart={handleAddToCart}
         addingProductId={addingProduct}
@@ -382,7 +278,7 @@ export default function StoreHome() {
       <ProductSection
         title="Now Trending"
         subtitle="These aren't just new pieces — they're the ones everyone's talking about."
-        products={newProducts}
+        products={newProducts as any}
         storeSlug={tenant.store_slug}
         onAddToCart={handleAddToCart}
         addingProductId={addingProduct}
