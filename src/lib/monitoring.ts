@@ -54,7 +54,6 @@ class FrontendMonitor {
             if (entry.entryType === 'navigation') {
               const navEntry = entry as PerformanceNavigationTiming;
               this.logPerformance({
-                type: 'navigation',
                 dns: navEntry.domainLookupEnd - navEntry.domainLookupStart,
                 tcp: navEntry.connectEnd - navEntry.connectStart,
                 request: navEntry.responseStart - navEntry.requestStart,
