@@ -113,10 +113,10 @@ serve(async (req) => {
     }
 
     return successResponse({
-      order_id: razorpayOrder.id,
+      razorpay_order_id: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
-      key: integration.razorpay_key_id,
+      key_id: integration.razorpay_key_id,
     });
 
   } catch (error) {
