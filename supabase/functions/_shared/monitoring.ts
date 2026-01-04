@@ -4,7 +4,7 @@
  */
 
 interface LogContext {
-  functionName: string;
+  functionName?: string;
   requestId?: string;
   tenantId?: string;
   userId?: string;

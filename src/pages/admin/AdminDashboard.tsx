@@ -150,9 +150,7 @@ export default function AdminDashboard({ tenant, isTrialExpired }: AdminDashboar
               <Skeleton className="h-8 w-16" />
             ) : (
               <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-display font-bold">
-                  {formatNumber(Number(stats?.total_products) || 0)}
-                </span>
+                <span className="text-2xl font-display font-bold">-</span>
                 {Number(stats?.low_stock_products) > 0 && (
                   <Badge variant="destructive">
                     {stats?.low_stock_products} low stock
