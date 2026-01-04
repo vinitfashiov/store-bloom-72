@@ -36,7 +36,6 @@ import AdminDeliveryBoys from './admin/AdminDeliveryBoys';
 import AdminDeliveryAreas from './admin/AdminDeliveryAreas';
 import AdminDeliveryOrders from './admin/AdminDeliveryOrders';
 import AdminDeliveryPayouts from './admin/AdminDeliveryPayouts';
-import AdminStores from './admin/AdminStores';
 
 // Wrapper to pass productId from route params
 function ProductFormWrapper({ tenantId, disabled }: { tenantId: string; disabled: boolean }) {
@@ -46,7 +45,7 @@ function ProductFormWrapper({ tenantId, disabled }: { tenantId: string; disabled
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, profile, tenant, loading, signOut } = useAuth();
+  const { user, profile, tenant, loading, signOut, refreshProfile } = useAuth();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -110,7 +109,6 @@ export default function Dashboard() {
     >
       <Routes>
         <Route index element={<AdminDashboard tenant={tenant} isTrialExpired={isTrialExpired} />} />
-        <Route path="stores" element={<AdminStores />} />
         <Route path="products" element={<AdminProducts tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="products/new" element={<AdminProductForm tenantId={tenant.id} disabled={isTrialExpired} />} />
         <Route path="products/:productId" element={<ProductFormWrapper tenantId={tenant.id} disabled={isTrialExpired} />} />

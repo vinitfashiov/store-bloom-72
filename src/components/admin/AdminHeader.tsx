@@ -111,7 +111,7 @@ export function AdminHeader({ storeName, storeSlug, businessType, tenantId, onSi
     <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="flex items-center justify-between h-14 px-4">
         <div className="flex items-center gap-3">
-          <StoreSwitcher currentTenantId={tenantId} onTenantChange={onTenantChange} />
+          <StoreSwitcher currentTenantId={tenantId} storeName={storeName} onTenantChange={onTenantChange} />
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild className="md:hidden">
               <Button variant="ghost" size="icon" className="h-9 w-9">
