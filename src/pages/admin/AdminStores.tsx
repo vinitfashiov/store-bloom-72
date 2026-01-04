@@ -28,6 +28,7 @@ import {
 import { toast } from 'sonner';
 import { Store, Plus, ExternalLink, Trash2, Star, Check, ShoppingCart, Apple, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { Switch } from '@/components/ui/switch';
 
 interface AdminStoresProps {
   onTenantChange: (tenantId: string) => void;
@@ -42,6 +43,7 @@ export default function AdminStores({ onTenantChange, onRefresh }: AdminStoresPr
   const [storeToDelete, setStoreToDelete] = useState<string | null>(null);
   const [confirmText, setConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [switchingStoreId, setSwitchingStoreId] = useState<string | null>(null);
 
   const handleCreateStore = () => {
     navigate('/onboarding?new=true');
@@ -49,7 +51,26 @@ export default function AdminStores({ onTenantChange, onRefresh }: AdminStoresPr
 
   const handleSwitchStore = async (tenantId: string) => {
     if (tenantId === currentTenant?.id) return;
-    onTenantChange(tenantId);
+
+    // Show loading state
+    setSwitchingStoreId(tenantId);
+
+    try {
+      // Switch the store - context update will automatically trigger re-render
+      await onTenantChange(tenantId);
+
+      // Clear switching state after context updates
+      // The UI will update automatically with the new currentTenant from context
+      setTimeout(() => {
+        setSwitchingStoreId(null);
+      }, 100);
+
+      toast.success('Store switched successfully');
+    } catch (error) {
+      console.error('Error switching store:', error);
+      toast.error('Failed to switch store');
+      setSwitchingStoreId(null);
+    }
   };
 
   const handleDeleteClick = (tenantId: string) => {
@@ -84,7 +105,7 @@ export default function AdminStores({ onTenantChange, onRefresh }: AdminStoresPr
 
       // Refresh tenants and switch to another store if we deleted the current one
       await onRefresh();
-      
+
       if (storeToDelete === currentTenant?.id) {
         const remainingTenants = tenants.filter(t => t.id !== storeToDelete);
         if (remainingTenants.length > 0) {
@@ -109,118 +130,161 @@ export default function AdminStores({ onTenantChange, onRefresh }: AdminStoresPr
   const storeToDeleteName = tenants.find(t => t.id === storeToDelete)?.store_name || '';
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-display font-bold">My Stores</h1>
-          <p className="text-muted-foreground">Manage all your stores from one place</p>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-display font-bold">My Stores</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">Manage all your stores from one place</p>
         </div>
-        <Button onClick={handleCreateStore}>
+        <Button onClick={handleCreateStore} className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
-          Create New Store
+          <span className="hidden sm:inline">Create New Store</span>
+          <span className="sm:hidden">New Store</span>
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {tenants.map((store) => {
-          const isCurrentStore = store.id === currentTenant?.id;
+          // Use switchingStoreId if switching is in progress, otherwise use currentTenant
+          const isCurrentStore = switchingStoreId
+            ? store.id === switchingStoreId
+            : store.id === currentTenant?.id;
+          const isSwitching = switchingStoreId === store.id;
           const daysRemaining = getDaysRemaining(store.trial_ends_at);
           const isExpired = store.plan === 'trial' && daysRemaining <= 0;
 
           return (
             <Card
               key={store.id}
-              className={`relative transition-all ${
-                isCurrentStore ? 'ring-2 ring-primary' : 'hover:border-primary/50'
-              }`}
+              className={`relative transition-all duration-300 ${isCurrentStore
+                  ? 'ring-2 ring-primary shadow-md bg-gradient-to-r from-primary/5 via-primary/3 to-transparent border-primary/20'
+                  : 'hover:border-primary/50 hover:shadow-sm'
+                } ${isSwitching ? 'opacity-60 scale-[0.98]' : ''}`}
             >
-              {isCurrentStore && (
-                <div className="absolute -top-2 -right-2">
-                  <Badge className="bg-primary">
-                    <Check className="w-3 h-3 mr-1" />
-                    Current
-                  </Badge>
-                </div>
-              )}
+              <CardContent className="p-4 sm:p-6">
+                {/* Card Layout - All Screens */}
+                <div className="flex flex-col gap-4">
+                  {/* Header Section */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${store.business_type === 'grocery'
+                          ? 'bg-gradient-to-br from-accent/20 to-accent/10 text-accent shadow-sm'
+                          : 'bg-gradient-to-br from-primary/20 to-primary/10 text-primary shadow-sm'
+                        } ${isCurrentStore ? 'ring-2 ring-primary/30 scale-105' : ''}`}>
+                        {store.business_type === 'grocery' ? (
+                          <Apple className="w-6 h-6 sm:w-7 sm:h-7" />
+                        ) : (
+                          <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7" />
+                        )}
+                        {isCurrentStore && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-primary rounded-full border-2 border-background flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-primary-foreground" />
+                          </div>
+                        )}
+                      </div>
 
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      store.business_type === 'grocery' 
-                        ? 'bg-accent/10 text-accent' 
-                        : 'bg-primary/10 text-primary'
-                    }`}>
-                      {store.business_type === 'grocery' ? (
-                        <Apple className="w-5 h-5" />
-                      ) : (
-                        <ShoppingCart className="w-5 h-5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <h3 className={`font-semibold text-base sm:text-lg truncate transition-colors ${isCurrentStore ? 'text-primary' : 'text-foreground'
+                            }`}>
+                            {store.store_name}
+                          </h3>
+                          {store.is_primary && (
+                            <Star className="w-4 h-4 text-warning fill-warning flex-shrink-0" />
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+                          <span className="font-mono text-[10px] sm:text-xs bg-muted/50 px-2 py-0.5 rounded">
+                            /store/{store.store_slug}
+                          </span>
+                          <Badge
+                            variant={store.plan === 'pro' ? 'default' : isExpired ? 'destructive' : 'secondary'}
+                            className="text-xs font-medium px-2 py-0.5 sm:px-2.5 sm:py-1 whitespace-nowrap shadow-sm"
+                          >
+                            {store.plan === 'pro' ? (
+                              <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground/80"></span>
+                                Pro
+                              </span>
+                            ) : isExpired ? (
+                              'Expired'
+                            ) : (
+                              <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
+                                Trial ({daysRemaining}d)
+                              </span>
+                            )}
+                          </Badge>
+                          <span className="capitalize text-xs bg-muted/30 px-2 py-0.5 rounded">
+                            {store.business_type}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Switch Section with Actions */}
+                  <div className="flex items-center justify-between gap-3">
+                    {/* Switch Control */}
+                    <div className={`flex items-center justify-between flex-1 px-4 py-3 rounded-lg transition-all duration-300 ${isCurrentStore ? 'bg-primary/10 border border-primary/20' : 'bg-muted/50'
+                      }`}>
+                      <div className="flex items-center gap-2">
+                        {isSwitching ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                            <span className="text-sm font-medium text-primary">Switching...</span>
+                          </>
+                        ) : (
+                          <span className="text-sm font-medium text-muted-foreground">
+                            {isCurrentStore ? 'Active Store' : 'Inactive Store'}
+                          </span>
+                        )}
+                      </div>
+                      <Switch
+                        checked={isCurrentStore}
+                        disabled={isSwitching || !!switchingStoreId}
+                        onCheckedChange={() => !isCurrentStore && handleSwitchStore(store.id)}
+                        className="data-[state=checked]:bg-primary"
+                      />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-10 px-3 rounded-lg border-primary/20 hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all shadow-sm hover:shadow-md group"
+                        asChild
+                        title="View Store"
+                      >
+                        <a
+                          href={`/store/${store.store_slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-1.5"
+                        >
+                          <ExternalLink className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                          <span className="hidden sm:inline text-xs font-medium">View</span>
+                        </a>
+                      </Button>
+
+                      {tenants.length > 1 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-10 w-10 p-0 rounded-lg border-destructive/20 text-destructive hover:text-destructive hover:bg-destructive/10 hover:border-destructive/40 transition-all shadow-sm hover:shadow-md"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClick(store.id);
+                          }}
+                          title="Delete Store"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       )}
                     </div>
-                    <div>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        {store.store_name}
-                        {store.is_primary && (
-                          <Star className="w-4 h-4 text-warning fill-warning" />
-                        )}
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        /store/{store.store_slug}
-                      </CardDescription>
-                    </div>
                   </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Plan</span>
-                  <Badge variant={store.plan === 'pro' ? 'default' : isExpired ? 'destructive' : 'secondary'}>
-                    {store.plan === 'pro' ? 'Pro' : isExpired ? 'Expired' : `Trial (${daysRemaining}d left)`}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Type</span>
-                  <span className="capitalize">{store.business_type}</span>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  {!isCurrentStore && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => handleSwitchStore(store.id)}
-                    >
-                      Switch to Store
-                    </Button>
-                  )}
-                  
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                  >
-                    <a
-                      href={`/store/${store.store_slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </Button>
-
-                  {tenants.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => handleDeleteClick(store.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -229,15 +293,23 @@ export default function AdminStores({ onTenantChange, onRefresh }: AdminStoresPr
 
         {/* Add Store Card */}
         <Card
-          className="border-dashed cursor-pointer hover:border-primary/50 transition-all"
+          className="border-2 border-dashed cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 group"
           onClick={handleCreateStore}
         >
-          <CardContent className="flex flex-col items-center justify-center h-full min-h-[200px] text-muted-foreground">
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-              <Plus className="w-6 h-6" />
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center flex-shrink-0 group-hover:from-primary/20 group-hover:to-primary/10 transition-all duration-300 group-hover:scale-110">
+                <Plus className="w-6 h-6 sm:w-7 sm:h-7 text-primary group-hover:text-primary transition-colors" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-base sm:text-lg group-hover:text-primary transition-colors truncate">
+                  Create New Store
+                </p>
+                <p className="text-xs sm:text-sm text-muted-foreground group-hover:text-foreground/70 transition-colors">
+                  Add another store to your account
+                </p>
+              </div>
             </div>
-            <p className="font-medium">Create New Store</p>
-            <p className="text-xs text-center mt-1">Add another store to your account</p>
           </CardContent>
         </Card>
       </div>

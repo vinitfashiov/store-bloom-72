@@ -22,9 +22,11 @@ export function StoreSwitcher({ currentTenantId, storeName, onTenantChange }: St
   const navigate = useNavigate();
   const { tenants } = useAuth();
 
-  const handleSwitchStore = (tenantId: string) => {
+  const handleSwitchStore = async (tenantId: string) => {
     if (tenantId !== currentTenantId) {
-      onTenantChange(tenantId);
+      await onTenantChange(tenantId);
+      // Context update will automatically trigger re-render with new tenant
+      // No need to reload - React handles the update smoothly
     }
   };
 
@@ -70,37 +72,41 @@ export function StoreSwitcher({ currentTenantId, storeName, onTenantChange }: St
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <div className="max-h-64 overflow-y-auto">
-          {tenants.map((tenant) => (
-            <DropdownMenuItem
-              key={tenant.id}
-              onClick={() => handleSwitchStore(tenant.id)}
-              className="cursor-pointer py-3 px-3 hover:bg-primary/5 focus:bg-primary/5"
-            >
-              <div className="flex items-center justify-between w-full gap-3">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    tenant.id === currentTenantId ? 'bg-primary' : 'bg-muted-foreground/30'
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{tenant.store_name}</span>
-                      {tenant.plan === 'pro' && (
-                        <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4 flex-shrink-0">
-                          Pro
-                        </Badge>
-                      )}
+          {tenants.map((tenant) => {
+            const isCurrent = tenant.id === currentTenantId;
+            return (
+              <DropdownMenuItem
+                key={tenant.id}
+                onClick={() => handleSwitchStore(tenant.id)}
+                className="cursor-pointer py-3 px-3 hover:bg-primary/5 focus:bg-primary/5"
+                disabled={isCurrent}
+              >
+                <div className="flex items-center justify-between w-full gap-3">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      isCurrent ? 'bg-primary' : 'bg-muted-foreground/30'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium truncate">{tenant.store_name}</span>
+                        {tenant.plan === 'pro' && (
+                          <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4 flex-shrink-0">
+                            Pro
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {tenant.business_type === 'grocery' ? 'Grocery Store' : 'E-commerce Store'}
+                      </p>
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {tenant.business_type === 'grocery' ? 'Grocery Store' : 'E-commerce Store'}
-                    </p>
                   </div>
+                  {isCurrent && (
+                    <Check className="w-4 h-4 text-primary flex-shrink-0" />
+                  )}
                 </div>
-                {tenant.id === currentTenantId && (
-                  <Check className="w-4 h-4 text-primary flex-shrink-0" />
-                )}
-              </div>
-            </DropdownMenuItem>
-          ))}
+              </DropdownMenuItem>
+            );
+          })}
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleManageStores} className="cursor-pointer">

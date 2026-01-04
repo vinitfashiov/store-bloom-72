@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,15 @@ export default function AdminCustomers({ tenantId }: AdminCustomersProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const { page, pageSize, setPage, setPageSize } = usePagination(1, 25);
+  const prevTenantIdRef = useRef(tenantId);
+
+  // Preserve page state when tenant changes (don't reset to page 1)
+  useEffect(() => {
+    if (prevTenantIdRef.current !== tenantId) {
+      prevTenantIdRef.current = tenantId;
+      // Don't reset page - keep current page number
+    }
+  }, [tenantId]);
   
   const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);

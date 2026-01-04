@@ -78,7 +78,8 @@ export default function Dashboard() {
 
   const handleTenantChange = async (newTenantId: string) => {
     await switchTenant(newTenantId);
-    window.location.reload();
+    // Context update will automatically trigger re-render with new tenant
+    // No need to navigate or reload - React handles the update smoothly
   };
 
   if (loading) {

@@ -23,6 +23,15 @@ export default function AdminProducts({ tenantId, disabled }: AdminProductsProps
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const { page, pageSize, setPage, setPageSize } = usePagination(1, 25);
+  const prevTenantIdRef = useRef(tenantId);
+
+  // Preserve page state when tenant changes (don't reset to page 1)
+  useEffect(() => {
+    if (prevTenantIdRef.current !== tenantId) {
+      prevTenantIdRef.current = tenantId;
+      // Don't reset page - keep current page number
+    }
+  }, [tenantId]);
 
   const { data, isLoading, isFetching, refetch } = useAdminProducts({
     tenantId,

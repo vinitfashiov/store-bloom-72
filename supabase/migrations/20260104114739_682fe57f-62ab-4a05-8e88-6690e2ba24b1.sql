@@ -301,6 +301,7 @@ RETURNS TABLE(
   avg_order_value NUMERIC,
   pending_orders BIGINT,
   total_customers BIGINT,
+  total_products BIGINT,
   low_stock_products BIGINT
 )
 LANGUAGE plpgsql
@@ -315,6 +316,7 @@ BEGIN
     (SELECT COALESCE(AVG(total), 0) FROM orders WHERE tenant_id = p_tenant_id AND created_at::DATE BETWEEN p_date_from AND p_date_to) as avg_order_value,
     (SELECT COUNT(*) FROM orders WHERE tenant_id = p_tenant_id AND status = 'pending') as pending_orders,
     (SELECT COUNT(*) FROM customers WHERE tenant_id = p_tenant_id) as total_customers,
+    (SELECT COUNT(*) FROM products WHERE tenant_id = p_tenant_id) as total_products,
     (SELECT COUNT(*) FROM products WHERE tenant_id = p_tenant_id AND is_active = true AND stock_qty <= COALESCE(low_stock_threshold, 10)) as low_stock_products;
 END;
 $$;

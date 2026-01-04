@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,15 @@ export default function AdminOrders({ tenantId }: AdminOrdersProps) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const { page, pageSize, setPage, setPageSize } = usePagination(1, 25);
+  const prevTenantIdRef = useRef(tenantId);
+
+  // Preserve page state when tenant changes (don't reset to page 1)
+  useEffect(() => {
+    if (prevTenantIdRef.current !== tenantId) {
+      prevTenantIdRef.current = tenantId;
+      // Don't reset page - keep current page number
+    }
+  }, [tenantId]);
 
   const { data, isLoading, isFetching, refetch } = useAdminOrders({
     tenantId,

@@ -186,23 +186,36 @@ export function PaginationControls({
 
 /**
  * Simple hook for managing pagination state
+ * Preserves page state across tenant changes
  */
 export function usePagination(initialPage = 1, initialPageSize = 25) {
   const [page, setPage] = React.useState(initialPage);
   const [pageSize, setPageSize] = React.useState(initialPageSize);
+  const prevPageRef = React.useRef(page);
+
+  // Preserve page state - only reset if explicitly needed
+  React.useEffect(() => {
+    // Only update if page was explicitly changed, not on re-renders
+    if (prevPageRef.current !== page) {
+      prevPageRef.current = page;
+    }
+  }, [page]);
 
   const handlePageChange = React.useCallback((newPage: number) => {
     setPage(newPage);
+    prevPageRef.current = newPage;
   }, []);
 
   const handlePageSizeChange = React.useCallback((newSize: number) => {
     setPageSize(newSize);
     setPage(1); // Reset to first page when changing page size
+    prevPageRef.current = 1;
   }, []);
 
   const reset = React.useCallback(() => {
     setPage(initialPage);
     setPageSize(initialPageSize);
+    prevPageRef.current = initialPage;
   }, [initialPage, initialPageSize]);
 
   return {
