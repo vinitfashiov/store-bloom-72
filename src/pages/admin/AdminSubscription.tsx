@@ -147,7 +147,7 @@ export default function AdminSubscription() {
                   {isPro ? 'Pro Plan' : 'Trial Plan'}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {isPro ? '₹249/month' : 'Free trial'}
+                  {isPro ? '₹1/month (testing)' : 'Free trial'}
                 </p>
               </div>
             </div>
