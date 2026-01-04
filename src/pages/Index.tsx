@@ -313,7 +313,7 @@ export default function Index() {
               <CardContent className="pt-0">
                 <div className="mb-6">
                   <span className="text-4xl font-display font-bold tracking-tight">
-                    ₹249
+                    ₹1
                   </span>
                   <span className="text-muted-foreground"> / month</span>
                 </div>

@@ -55,7 +55,7 @@ export function AdminLayout({
                 </div>
                 <Button onClick={onUpgrade} size="sm" className="shadow-glow">
                   <CreditCard className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Upgrade to Pro - </span>₹249/mo
+                  <span className="hidden sm:inline">Upgrade to Pro - </span>₹1/mo
                 </Button>
               </div>
             </div>
