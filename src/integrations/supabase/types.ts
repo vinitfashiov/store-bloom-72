@@ -2300,6 +2300,8 @@ export type Database = {
           created_at: string
           favicon_path: string | null
           logo_path: string | null
+          show_footer: boolean
+          show_header: boolean
           store_address: string | null
           store_email: string | null
           store_phone: string | null
@@ -2312,6 +2314,8 @@ export type Database = {
           created_at?: string
           favicon_path?: string | null
           logo_path?: string | null
+          show_footer?: boolean
+          show_header?: boolean
           store_address?: string | null
           store_email?: string | null
           store_phone?: string | null
@@ -2324,6 +2328,8 @@ export type Database = {
           created_at?: string
           favicon_path?: string | null
           logo_path?: string | null
+          show_footer?: boolean
+          show_header?: boolean
           store_address?: string | null
           store_email?: string | null
           store_phone?: string | null
