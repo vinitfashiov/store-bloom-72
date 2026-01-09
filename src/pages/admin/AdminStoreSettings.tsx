@@ -17,6 +17,8 @@ interface StoreSettings {
   store_email: string | null;
   store_phone: string | null;
   store_address: string | null;
+  show_header: boolean;
+  show_footer: boolean;
 }
 
 interface AdminStoreSettingsProps {
@@ -39,6 +41,8 @@ export default function AdminStoreSettings({ tenantId, disabled }: AdminStoreSet
     store_email: '',
     store_phone: '',
     store_address: '',
+    show_header: true,
+    show_footer: true,
   });
 
   useEffect(() => {
