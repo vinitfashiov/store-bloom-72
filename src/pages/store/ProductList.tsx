@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,12 @@ import { Badge } from '@/components/ui/badge';
 import { StoreHeader } from '@/components/storefront/StoreHeader';
 import { StoreFooter } from '@/components/storefront/StoreFooter';
 import { ProductCard } from '@/components/storefront/ProductCard';
+import { GroceryProductCard } from '@/components/storefront/grocery/GroceryProductCard';
+import { GroceryBottomNav } from '@/components/storefront/grocery/GroceryBottomNav';
 import { useCart } from '@/hooks/useCart';
 import { useStoreAuth } from '@/contexts/StoreAuthContext';
 import { toast } from 'sonner';
-import { Package, Search, SlidersHorizontal, MapPin, X } from 'lucide-react';
+import { Package, Search, SlidersHorizontal, MapPin, X, ArrowLeft } from 'lucide-react';
 
 interface Tenant {
   id: string;
@@ -332,6 +334,146 @@ export default function ProductList() {
 
   const isGrocery = tenant.business_type === 'grocery';
 
+  // Get cart item quantities for grocery products
+  const cartQuantities = useMemo(() => {
+    const quantities: Record<string, number> = {};
+    // Cart items would need to be accessible here - using itemCount as proxy for now
+    return quantities;
+  }, []);
+
+  // Grocery Layout
+  if (isGrocery) {
+    return (
+      <div className="min-h-screen bg-white flex flex-col pb-20">
+        {/* Header */}
+        <header className="sticky top-0 z-40 bg-white border-b border-neutral-200">
+          <div className="flex items-center gap-3 px-4 h-14">
+            <Link to={`/store/${slug}`} className="p-1">
+              <ArrowLeft className="w-5 h-5 text-neutral-700" />
+            </Link>
+            <h1 className="flex-1 font-semibold text-neutral-900 truncate">
+              {selectedCategory !== 'all' 
+                ? parentCategories.find(c => c.slug === selectedCategory)?.name || 'Products'
+                : 'All Products'}
+            </h1>
+            <button className="p-2">
+              <Search className="w-5 h-5 text-neutral-600" />
+            </button>
+            <button className="p-2">
+              <SlidersHorizontal className="w-5 h-5 text-neutral-600" />
+            </button>
+          </div>
+          
+          {/* Filter Bar */}
+          <div className="px-4 py-2 flex gap-2 overflow-x-auto">
+            <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+              <SelectTrigger className="w-auto min-w-[130px] h-9 text-sm bg-neutral-100 border-0">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {parentCategories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.slug}>{cat.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            
+            {brands.length > 0 && (
+              <Select value={selectedBrand} onValueChange={handleBrandChange}>
+                <SelectTrigger className="w-auto min-w-[110px] h-9 text-sm bg-neutral-100 border-0">
+                  <SelectValue placeholder="All Brands" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Brands</SelectItem>
+                  {brands.map(brand => (
+                    <SelectItem key={brand.id} value={brand.slug}>{brand.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-auto min-w-[120px] h-9 text-sm bg-neutral-100 border-0">
+                <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name (A-Z)</SelectItem>
+                <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                <SelectItem value="price-desc">Price: High to Low</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 bg-white">
+          {/* Price Filter (compact) */}
+          <div className="px-4 py-3 border-b border-neutral-100">
+            <div className="flex items-center gap-3">
+              <Label className="text-sm font-medium text-neutral-600">Price Range:</Label>
+              <div className="flex-1 max-w-[200px]">
+                <Slider
+                  value={priceRange}
+                  onValueChange={(value) => setPriceRange(value as [number, number])}
+                  max={maxPrice}
+                  min={0}
+                  step={100}
+                  className="w-full"
+                />
+              </div>
+              <span className="text-sm text-neutral-600">₹{priceRange[0]} - ₹{priceRange[1]}</span>
+            </div>
+          </div>
+
+          {/* Product Count */}
+          <div className="px-4 py-2 text-sm text-neutral-500">
+            {filteredProducts.length} products
+          </div>
+
+          {/* Products Grid */}
+          {loading ? (
+            <div className="p-3 grid grid-cols-2 gap-3">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <Skeleton key={i} className="h-56 rounded-xl" />
+              ))}
+            </div>
+          ) : filteredProducts.length > 0 ? (
+            <div className="p-3 grid grid-cols-2 gap-3">
+              {filteredProducts.map((product) => (
+                <GroceryProductCard
+                  key={product.id}
+                  product={product as any}
+                  storeSlug={slug!}
+                  onAddToCart={handleAddToCart}
+                  cartQuantity={cartQuantities[product.id] || 0}
+                  isAdding={addingProduct === product.id}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 text-center p-4">
+              <span className="text-4xl mb-3">📦</span>
+              <p className="text-neutral-600 font-medium">No products found</p>
+              <p className="text-sm text-neutral-400 mt-1">
+                {searchQuery ? 'Try a different search' : 'Check back later'}
+              </p>
+              {hasActiveFilters && (
+                <Button variant="outline" className="mt-4" onClick={clearFilters}>
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          )}
+        </main>
+
+        {/* Bottom Navigation */}
+        <GroceryBottomNav storeSlug={slug!} cartCount={itemCount} />
+      </div>
+    );
+  }
+
+  // E-commerce Layout (existing)
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <StoreHeader
@@ -344,35 +486,6 @@ export default function ProductList() {
       />
 
       <main className="flex-1 container mx-auto px-4 py-8">
-        {/* Grocery zone selector */}
-        {isGrocery && zones.length > 0 && (
-          <div className="mb-6 p-4 bg-muted/50 rounded-lg">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-primary" />
-                <span className="font-medium">Check delivery availability:</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="Enter pincode"
-                  value={pincode}
-                  onChange={(e) => handlePincodeChange(e.target.value)}
-                  className="w-32"
-                  maxLength={6}
-                />
-                {selectedZone && (
-                  <Badge variant="secondary" className="whitespace-nowrap">
-                    {selectedZone.name}
-                  </Badge>
-                )}
-                {pincode.length >= 6 && !selectedZone && zones.length > 0 && (
-                  <span className="text-sm text-destructive">Not serviceable</span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Live Search Dropdown */}
         {showSearchResults && searchResults.length > 0 && (
           <div className="relative mb-4">
