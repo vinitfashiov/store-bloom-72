@@ -40,13 +40,12 @@ import {
 import { toast } from 'sonner';
 import { Store } from 'lucide-react';
 
-// Memoized loading skeleton
+// Minimal loading indicator - not full skeleton for faster perceived load
 const LoadingSkeleton = memo(() => (
-  <div className="min-h-screen bg-white">
-    <div className="p-4"><Skeleton className="h-16 w-full rounded-xl" /></div>
-    <div className="p-4"><Skeleton className="h-40 w-full rounded-2xl" /></div>
-    <div className="p-4 grid grid-cols-4 gap-3">
-      {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <Skeleton key={i} className="aspect-square rounded-xl" />)}
+  <div className="min-h-screen bg-white flex items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-10 h-10 border-3 border-green-600 border-t-transparent rounded-full animate-spin" />
+      <p className="text-sm text-neutral-500">Loading store...</p>
     </div>
   </div>
 ));
@@ -104,11 +103,11 @@ function GroceryStoreContent({
   
   const { 
     isLocationSet, 
-    isDeliverable, 
-    openLocationModal 
+    isDeliverable,
+    isInitialized,
+    isLoading: locationLoading
   } = useGroceryLocation();
 
-  // Show location modal on first visit if location not set
   const handleLocationClick = () => {
     setShowLocationModal(true);
   };
@@ -119,8 +118,23 @@ function GroceryStoreContent({
     }
   };
 
-  // If location is set but not deliverable, show not deliverable screen
-  if (isLocationSet && !isDeliverable) {
+  // Don't show not deliverable until location check is complete
+  // This prevents the flash of "not deliverable" on page load
+  const showNotDeliverable = isInitialized && isLocationSet && !isDeliverable && !locationLoading;
+
+  // Show minimal loading while checking location (not full skeleton)
+  if (!isInitialized && isLocationSet) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-neutral-500">Checking delivery...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showNotDeliverable) {
     return (
       <>
         <GroceryNotDeliverable 

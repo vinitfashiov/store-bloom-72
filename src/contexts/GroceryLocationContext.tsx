@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface DeliveryArea {
@@ -16,6 +16,7 @@ interface GroceryLocationContextType {
   isDeliverable: boolean;
   isLocationSet: boolean;
   isLoading: boolean;
+  isInitialized: boolean; // NEW: tracks if initial check is done
   showLocationModal: boolean;
   setPincode: (pincode: string) => void;
   setLocality: (locality: string | null) => void;
@@ -29,46 +30,72 @@ const GroceryLocationContext = createContext<GroceryLocationContextType | undefi
 
 const STORAGE_KEY_PINCODE = 'grocery_pincode';
 const STORAGE_KEY_LOCALITY = 'grocery_locality';
+const STORAGE_KEY_DELIVERABLE = 'grocery_deliverable';
 
 export function GroceryLocationProvider({ children, tenantId }: { children: ReactNode; tenantId: string | null }) {
-  const [pincode, setPincodeState] = useState<string>('');
-  const [locality, setLocalityState] = useState<string | null>(null);
+  const [pincode, setPincodeState] = useState<string>(() => {
+    // Initialize from localStorage synchronously to prevent flash
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(STORAGE_KEY_PINCODE) || '';
+    }
+    return '';
+  });
+  const [locality, setLocalityState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(STORAGE_KEY_LOCALITY) || null;
+    }
+    return null;
+  });
   const [deliveryArea, setDeliveryArea] = useState<DeliveryArea | null>(null);
-  const [isDeliverable, setIsDeliverable] = useState(false);
+  const [isDeliverable, setIsDeliverable] = useState(() => {
+    // Initialize from cached value to prevent flash
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(STORAGE_KEY_DELIVERABLE) === 'true';
+    }
+    return false;
+  });
   const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  
+  const checkInProgressRef = useRef(false);
 
-  // Load saved pincode from localStorage
+  // Check deliverability on mount if pincode exists
   useEffect(() => {
-    const savedPincode = localStorage.getItem(STORAGE_KEY_PINCODE);
-    const savedLocality = localStorage.getItem(STORAGE_KEY_LOCALITY);
+    const initializeLocation = async () => {
+      if (tenantId && pincode && pincode.length === 6) {
+        await checkDeliverability(tenantId);
+      }
+      setIsInitialized(true);
+    };
     
-    if (savedPincode) {
-      setPincodeState(savedPincode);
-    }
-    if (savedLocality) {
-      setLocalityState(savedLocality);
-    }
-  }, []);
+    initializeLocation();
+  }, [tenantId]);
 
-  // Check deliverability when pincode or tenantId changes
+  // Re-check when pincode changes (after initial load)
   useEffect(() => {
-    if (tenantId && pincode && pincode.length === 6) {
+    if (isInitialized && tenantId && pincode && pincode.length === 6) {
       checkDeliverability(tenantId);
-    } else if (!pincode) {
+    } else if (!pincode && isInitialized) {
       setDeliveryArea(null);
       setIsDeliverable(false);
+      localStorage.removeItem(STORAGE_KEY_DELIVERABLE);
     }
-  }, [tenantId, pincode]);
+  }, [pincode, isInitialized]);
 
   const checkDeliverability = useCallback(async (tid: string): Promise<boolean> => {
     if (!pincode || pincode.length !== 6) {
       setIsDeliverable(false);
       setDeliveryArea(null);
+      localStorage.removeItem(STORAGE_KEY_DELIVERABLE);
       return false;
     }
 
+    // Prevent duplicate checks
+    if (checkInProgressRef.current) return isDeliverable;
+    checkInProgressRef.current = true;
     setIsLoading(true);
+    
     try {
       const { data: areas } = await supabase
         .from('delivery_areas')
@@ -77,7 +104,6 @@ export function GroceryLocationProvider({ children, tenantId }: { children: Reac
         .eq('is_active', true);
 
       if (areas && areas.length > 0) {
-        // Find matching delivery area
         const matchedArea = areas.find(area => 
           area.pincodes && area.pincodes.includes(pincode)
         );
@@ -85,26 +111,27 @@ export function GroceryLocationProvider({ children, tenantId }: { children: Reac
         if (matchedArea) {
           setDeliveryArea(matchedArea);
           setIsDeliverable(true);
-          setIsLoading(false);
+          localStorage.setItem(STORAGE_KEY_DELIVERABLE, 'true');
           return true;
         }
       }
 
       setDeliveryArea(null);
       setIsDeliverable(false);
-      setIsLoading(false);
+      localStorage.setItem(STORAGE_KEY_DELIVERABLE, 'false');
       return false;
     } catch (error) {
       console.error('Error checking deliverability:', error);
       setIsDeliverable(false);
       setDeliveryArea(null);
-      setIsLoading(false);
       return false;
+    } finally {
+      setIsLoading(false);
+      checkInProgressRef.current = false;
     }
-  }, [pincode]);
+  }, [pincode, isDeliverable]);
 
   const setPincode = useCallback((newPincode: string) => {
-    // Only allow 6 digit numbers
     const sanitized = newPincode.replace(/\D/g, '').slice(0, 6);
     setPincodeState(sanitized);
     
@@ -112,6 +139,7 @@ export function GroceryLocationProvider({ children, tenantId }: { children: Reac
       localStorage.setItem(STORAGE_KEY_PINCODE, sanitized);
     } else if (sanitized.length === 0) {
       localStorage.removeItem(STORAGE_KEY_PINCODE);
+      localStorage.removeItem(STORAGE_KEY_DELIVERABLE);
     }
   }, []);
 
@@ -139,6 +167,7 @@ export function GroceryLocationProvider({ children, tenantId }: { children: Reac
     setIsDeliverable(false);
     localStorage.removeItem(STORAGE_KEY_PINCODE);
     localStorage.removeItem(STORAGE_KEY_LOCALITY);
+    localStorage.removeItem(STORAGE_KEY_DELIVERABLE);
   }, []);
 
   const isLocationSet = pincode.length === 6;
@@ -152,6 +181,7 @@ export function GroceryLocationProvider({ children, tenantId }: { children: Reac
         isDeliverable,
         isLocationSet,
         isLoading,
+        isInitialized,
         showLocationModal,
         setPincode,
         setLocality,
