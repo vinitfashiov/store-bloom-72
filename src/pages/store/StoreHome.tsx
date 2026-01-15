@@ -40,12 +40,18 @@ import {
 import { toast } from 'sonner';
 import { Store } from 'lucide-react';
 
-// Minimal loading indicator - not full skeleton for faster perceived load
+// Ultra-minimal loading - just a subtle indicator, content shell shows immediately
 const LoadingSkeleton = memo(() => (
-  <div className="min-h-screen bg-white flex items-center justify-center">
-    <div className="flex flex-col items-center gap-3">
-      <div className="w-10 h-10 border-3 border-green-600 border-t-transparent rounded-full animate-spin" />
-      <p className="text-sm text-neutral-500">Loading store...</p>
+  <div className="min-h-screen bg-white">
+    {/* Skeleton header */}
+    <div className="h-14 bg-neutral-100 animate-pulse" />
+    {/* Skeleton hero */}
+    <div className="h-48 bg-neutral-50 animate-pulse" />
+    {/* Skeleton content grid */}
+    <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className="h-32 bg-neutral-100 rounded-lg animate-pulse" />
+      ))}
     </div>
   </div>
 ));
@@ -339,8 +345,8 @@ export default function StoreHome() {
   const showHeader = storeSettings?.show_header ?? true;
   const showFooter = storeSettings?.show_footer ?? true;
 
-  // Loading state
-  if (tenantLoading || layoutLoading || grapesLoading) {
+  // Only show loading if we have NO tenant data yet - show skeleton with partial content ASAP
+  if (tenantLoading && !tenant) {
     return <LoadingSkeleton />;
   }
 

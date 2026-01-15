@@ -88,11 +88,22 @@ serve(async (req: Request) => {
       // Store OTP with tenant context
       const otpKey = `${cleanPhone}_${tenantId}`;
       
-      // Delete existing OTP for this phone+tenant
-      await supabase
-        .from("otp_verifications")
-        .delete()
-        .eq("phone", otpKey);
+      // Check if user exists (do this in parallel with OTP storage for speed)
+      const [existingCustomerResult, _] = await Promise.all([
+        supabase
+          .from("customers")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("phone", cleanPhone)
+          .maybeSingle(),
+        // Delete existing OTP for this phone+tenant
+        supabase
+          .from("otp_verifications")
+          .delete()
+          .eq("phone", otpKey)
+      ]);
+
+      const userExists = !!existingCustomerResult.data;
 
       // Insert new OTP
       const { error: insertError } = await supabase
@@ -124,10 +135,17 @@ serve(async (req: Request) => {
       try {
         const smsUrl = `https://www.fast2sms.com/dev/bulkV2?authorization=${FAST2SMS_API_KEY}&route=otp&variables_values=${otpCode}&flash=0&numbers=${cleanPhone}`;
         
+        // Use AbortController for timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        
         const smsResponse = await fetch(smsUrl, {
           method: "GET",
-          headers: { "Cache-Control": "no-cache" }
+          headers: { "Cache-Control": "no-cache" },
+          signal: controller.signal
         });
+        
+        clearTimeout(timeout);
 
         const smsResult = await smsResponse.json();
         console.log("Fast2SMS response:", smsResult);
@@ -135,18 +153,23 @@ serve(async (req: Request) => {
         if (!smsResult.return) {
           throw new Error(smsResult.message || "SMS sending failed");
         }
-      } catch (smsError) {
+      } catch (smsError: any) {
         console.error("SMS sending error:", smsError);
         // Clean up stored OTP
         await supabase.from("otp_verifications").delete().eq("phone", otpKey);
+        
+        const errorMessage = smsError.name === 'AbortError' 
+          ? "SMS service timeout. Please try again."
+          : "Failed to send OTP. Please try again.";
+        
         return new Response(
-          JSON.stringify({ error: "Failed to send OTP. Please try again." }),
+          JSON.stringify({ error: errorMessage }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
       return new Response(
-        JSON.stringify({ success: true, message: "OTP sent successfully" }),
+        JSON.stringify({ success: true, message: "OTP sent successfully", userExists }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

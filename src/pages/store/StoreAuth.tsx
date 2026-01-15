@@ -76,18 +76,12 @@ export default function StoreAuth({ tenantId, storeName }: StoreAuthProps) {
     }
 
     setLoading(true);
+    
+    // Show optimistic UI immediately
+    toast.loading('Sending OTP...', { id: 'otp-send' });
 
     try {
-      // Check if user exists
-      const { data: checkData, error: checkError } = await supabase.functions.invoke('store-customer-otp', {
-        body: { action: 'check', phone: cleaned, tenantId }
-      });
-
-      if (checkError) throw checkError;
-
-      setIsNewUser(!checkData.exists);
-
-      // Send OTP
+      // Combined: Send OTP (the edge function will also tell us if user exists)
       const { data: sendData, error: sendError } = await supabase.functions.invoke('store-customer-otp', {
         body: { action: 'send', phone: cleaned, tenantId }
       });
@@ -95,16 +89,22 @@ export default function StoreAuth({ tenantId, storeName }: StoreAuthProps) {
       if (sendError) throw sendError;
 
       if (sendData.error) {
+        toast.dismiss('otp-send');
         toast.error(sendData.error);
         setLoading(false);
         return;
       }
 
-      toast.success('OTP sent to your phone');
+      // If the response includes user existence info, use it
+      setIsNewUser(!sendData.userExists);
+
+      toast.dismiss('otp-send');
+      toast.success('OTP sent!');
       setStep('otp');
       setCountdown(30);
     } catch (error: any) {
       console.error('Phone submit error:', error);
+      toast.dismiss('otp-send');
       toast.error(error.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
