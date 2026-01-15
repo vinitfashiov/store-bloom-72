@@ -178,18 +178,19 @@ function AppContent() {
   const { isCustomDomain, loading } = useCustomDomain();
   const location = useLocation();
 
-  if (loading) {
+  // Landing page - ALWAYS render immediately, no waiting
+  if (location.pathname === '/') {
+    return <Index />;
+  }
+
+  // Only show loading for custom domains (non-platform routes)
+  if (loading && isCustomDomain) {
     return <AppFallback />;
   }
 
   // If custom domain, render storefront routes only
   if (isCustomDomain) {
     return <CustomDomainRoutes />;
-  }
-
-  // Landing page - render immediately without any auth overhead
-  if (location.pathname === '/') {
-    return <Index />;
   }
 
   // Store routes - separate from auth provider

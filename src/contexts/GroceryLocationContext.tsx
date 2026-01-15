@@ -67,7 +67,16 @@ export function GroceryLocationProvider({ children, tenantId }: { children: Reac
   });
   
   const [isLoading, setIsLoading] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+  // Initialize as true if we have cached data (avoids flashing "not deliverable")
+  const [isInitialized, setIsInitialized] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const cachedPincode = localStorage.getItem(STORAGE_KEY_PINCODE);
+      const cachedDeliverable = localStorage.getItem(STORAGE_KEY_DELIVERABLE);
+      // If we have valid cached state, consider initialized immediately
+      return !!(cachedPincode && cachedPincode.length === 6 && cachedDeliverable);
+    }
+    return false;
+  });
   const [showLocationModal, setShowLocationModal] = useState(false);
   
   // Track current check to prevent stale updates
