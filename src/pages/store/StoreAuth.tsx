@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Store, ArrowLeft, Phone, User, KeyRound, ArrowRight } from 'lucide-react';
+import { Loader2, Store, ArrowLeft, Phone, User, KeyRound, ArrowRight, Mail } from 'lucide-react';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 
 interface StoreAuthProps {
@@ -52,6 +52,7 @@ export default function StoreAuth({ tenantId, storeName }: StoreAuthProps) {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [isNewUser, setIsNewUser] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
@@ -189,7 +190,8 @@ export default function StoreAuth({ tenantId, storeName }: StoreAuthProps) {
           phone: cleanPhone(phone), 
           otp, 
           tenantId,
-          name: name.trim()
+          name: name.trim(),
+          customerEmail: email.trim() || undefined
         }
       });
 
@@ -258,6 +260,7 @@ export default function StoreAuth({ tenantId, storeName }: StoreAuthProps) {
     } else if (step === 'name') {
       setStep('otp');
       setName('');
+      setEmail('');
     }
   };
 
@@ -392,6 +395,24 @@ export default function StoreAuth({ tenantId, storeName }: StoreAuthProps) {
                     placeholder="Enter your full name"
                     autoFocus
                   />
+                </div>
+                <div>
+                  <Label htmlFor="email" className="flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    Email Address
+                    <span className="text-xs text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="mt-1"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Get order updates & receipts via email
+                  </p>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading || !name.trim()}>
                   {loading ? (

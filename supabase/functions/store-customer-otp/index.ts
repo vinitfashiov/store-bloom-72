@@ -34,10 +34,10 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { action, phone, otp, tenantId, name } = await req.json();
+    const { action, phone, otp, tenantId, name, customerEmail } = await req.json();
     const cleanPhone = cleanPhoneNumber(phone);
     
-    console.log(`Store Customer OTP - Action: ${action}, Phone: ${cleanPhone}, Tenant: ${tenantId}, Name: ${name || 'not provided'}`);
+    console.log(`Store Customer OTP - Action: ${action}, Phone: ${cleanPhone}, Tenant: ${tenantId}, Name: ${name || 'not provided'}, Email: ${customerEmail || 'not provided'}`);
 
     if (!cleanPhone || cleanPhone.length !== 10) {
       return new Response(
@@ -264,11 +264,16 @@ serve(async (req: Request) => {
         }
 
         // Name provided - complete signup
-        console.log(`Creating account for ${cleanPhone} with name: ${name}`);
+        // Use customer-provided email if valid, otherwise use generated email
+        const finalEmail = customerEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) 
+          ? customerEmail.toLowerCase().trim() 
+          : email;
+        
+        console.log(`Creating account for ${cleanPhone} with name: ${name}, email: ${finalEmail}`);
 
         // Create auth user
         const { data: existingUsers } = await supabase.auth.admin.listUsers();
-        const existingAuthUser = existingUsers?.users?.find(u => u.email === email);
+        const existingAuthUser = existingUsers?.users?.find(u => u.email === finalEmail);
 
         let userId: string;
 
@@ -280,7 +285,7 @@ serve(async (req: Request) => {
         } else {
           // Create new user
           const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-            email,
+            email: finalEmail,
             password,
             email_confirm: true,
             user_metadata: { name, phone: cleanPhone }
@@ -306,7 +311,7 @@ serve(async (req: Request) => {
             user_id: userId,
             name,
             phone: cleanPhone,
-            email
+            email: finalEmail
           });
 
         if (customerError) {
@@ -326,7 +331,7 @@ serve(async (req: Request) => {
           JSON.stringify({
             success: true,
             action: "signup",
-            email,
+            email: finalEmail,
             password,
             customerName: name
           }),
