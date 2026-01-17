@@ -688,6 +688,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "delivery_assignments_delivery_boy_id_fkey"
+            columns: ["delivery_boy_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_boys_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "delivery_assignments_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: true
@@ -748,6 +755,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "delivery_boy_areas_delivery_boy_id_fkey"
+            columns: ["delivery_boy_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_boys_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "delivery_boy_areas_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -791,6 +805,13 @@ export type Database = {
             columns: ["delivery_boy_id"]
             isOneToOne: false
             referencedRelation: "delivery_boys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_boy_sessions_delivery_boy_id_fkey"
+            columns: ["delivery_boy_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_boys_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -926,6 +947,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "delivery_earnings_delivery_boy_id_fkey"
+            columns: ["delivery_boy_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_boys_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "delivery_earnings_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -994,6 +1022,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "delivery_payout_requests_delivery_boy_id_fkey"
+            columns: ["delivery_boy_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_boys_safe"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "delivery_payout_requests_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -1052,6 +1087,13 @@ export type Database = {
             columns: ["delivery_boy_id"]
             isOneToOne: false
             referencedRelation: "delivery_boys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_payouts_delivery_boy_id_fkey"
+            columns: ["delivery_boy_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_boys_safe"
             referencedColumns: ["id"]
           },
           {
@@ -1176,6 +1218,13 @@ export type Database = {
             columns: ["delivery_boy_id"]
             isOneToOne: false
             referencedRelation: "delivery_boys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_status_logs_delivery_boy_id_fkey"
+            columns: ["delivery_boy_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_boys_safe"
             referencedColumns: ["id"]
           },
           {
@@ -3081,6 +3130,87 @@ export type Database = {
       }
     }
     Views: {
+      delivery_boys_safe: {
+        Row: {
+          created_at: string | null
+          full_name: string | null
+          has_bank_account: boolean | null
+          has_password: boolean | null
+          has_upi: boolean | null
+          id: string | null
+          is_active: boolean | null
+          mobile_number: string | null
+          monthly_salary: number | null
+          payment_type:
+            | Database["public"]["Enums"]["delivery_payment_type"]
+            | null
+          per_order_amount: number | null
+          percentage_value: number | null
+          tenant_id: string | null
+          total_earned: number | null
+          total_paid: number | null
+          updated_at: string | null
+          wallet_balance: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          full_name?: string | null
+          has_bank_account?: never
+          has_password?: never
+          has_upi?: never
+          id?: string | null
+          is_active?: boolean | null
+          mobile_number?: string | null
+          monthly_salary?: number | null
+          payment_type?:
+            | Database["public"]["Enums"]["delivery_payment_type"]
+            | null
+          per_order_amount?: number | null
+          percentage_value?: number | null
+          tenant_id?: string | null
+          total_earned?: number | null
+          total_paid?: number | null
+          updated_at?: string | null
+          wallet_balance?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          full_name?: string | null
+          has_bank_account?: never
+          has_password?: never
+          has_upi?: never
+          id?: string | null
+          is_active?: boolean | null
+          mobile_number?: string | null
+          monthly_salary?: number | null
+          payment_type?:
+            | Database["public"]["Enums"]["delivery_payment_type"]
+            | null
+          per_order_amount?: number | null
+          percentage_value?: number | null
+          tenant_id?: string | null
+          total_earned?: number | null
+          total_paid?: number | null
+          updated_at?: string | null
+          wallet_balance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_boys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_boys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_integrations_safe: {
         Row: {
           created_at: string | null
