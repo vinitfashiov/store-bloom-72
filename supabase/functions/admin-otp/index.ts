@@ -178,15 +178,14 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get OTP from database
+      // Get OTP from database - check for both verified and unverified (for name submission flow)
       const { data: otpRecord, error: fetchError } = await supabase
         .from("otp_verifications")
         .select("*")
         .eq("phone", cleanPhone)
-        .eq("verified", false)
-        .single();
+        .maybeSingle();
 
-      console.log("Verifying OTP for:", cleanPhone, "Found record:", !!otpRecord);
+      console.log("Verifying OTP for:", cleanPhone, "Found record:", !!otpRecord, "Verified:", otpRecord?.verified);
 
       if (fetchError || !otpRecord) {
         return new Response(
@@ -207,19 +206,16 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Verify OTP matches
-      if (otpRecord.otp !== otp) {
-        return new Response(
-          JSON.stringify({ error: "Invalid OTP. Please try again." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      // If OTP is not yet verified, check the OTP code
+      if (!otpRecord.verified) {
+        if (otpRecord.otp !== otp) {
+          return new Response(
+            JSON.stringify({ error: "Invalid OTP. Please try again." }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
       }
-
-      // OTP verified - mark as used
-      await supabase
-        .from("otp_verifications")
-        .update({ verified: true })
-        .eq("id", otpRecord.id);
+      // If OTP is already verified (name submission flow), we skip OTP check
 
       // Check if user exists
       const { data: existingUsers } = await supabase.auth.admin.listUsers();
@@ -257,7 +253,12 @@ Deno.serve(async (req) => {
       } else {
         // SIGNUP FLOW - New user
         if (!name || name.trim().length < 2) {
-          // Need name to complete signup
+          // Need name to complete signup - mark OTP as verified but don't delete
+          await supabase
+            .from("otp_verifications")
+            .update({ verified: true })
+            .eq("id", otpRecord.id);
+            
           return new Response(
             JSON.stringify({ 
               success: true,
@@ -284,7 +285,7 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Delete OTP record
+        // Delete OTP record ONLY after full signup
         await supabase
           .from("otp_verifications")
           .delete()
