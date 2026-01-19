@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StoreAuthProvider } from '@/contexts/StoreAuthContext';
 import { AlertTriangle, Trash2 } from 'lucide-react';
+import { StoreAnalyticsTracker } from '@/components/storefront/StoreAnalyticsTracker';
 
 interface StoreGuardProps {
   children: ReactNode;
@@ -142,7 +143,12 @@ export default function StoreGuard({ children }: StoreGuardProps) {
     );
   }
 
-  return <StoreAuthProvider tenantId={tenant.id}>{children}</StoreAuthProvider>;
+  return (
+    <StoreAuthProvider tenantId={tenant.id}>
+      <StoreAnalyticsTracker tenantId={tenant.id} />
+      {children}
+    </StoreAuthProvider>
+  );
 }
 
 // Export tenant context hook for child components
