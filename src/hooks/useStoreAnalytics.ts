@@ -73,59 +73,84 @@ export function useStoreAnalytics({ tenantId, enabled = true }: AnalyticsConfig)
   const pageViewCount = useRef(0);
   const sessionStartTime = useRef(Date.now());
   const currentPage = useRef(window.location.pathname);
+  const lastTrackedPath = useRef<string | null>(null);
+  const hasEnded = useRef(false);
 
-  const track = useCallback(async (type: string, data: Record<string, unknown> = {}) => {
-    if (!enabled || !tenantId) return;
+  const track = useCallback(
+    async (type: string, data: Record<string, unknown> = {}) => {
+      if (!enabled || !tenantId) return;
 
-    try {
-      const { data: funcData, error } = await supabase.functions.invoke('track-analytics', {
-        headers: { 'x-tenant-id': tenantId },
-        body: {
-          type,
-          session_id: sessionId.current,
-          visitor_id: visitorId.current,
-          data,
-        },
+      try {
+        const { error } = await supabase.functions.invoke('track-analytics', {
+          headers: { 'x-tenant-id': tenantId },
+          body: {
+            type,
+            session_id: sessionId.current,
+            visitor_id: visitorId.current,
+            data,
+          },
+        });
+        if (error) console.warn('Analytics tracking failed:', error);
+      } catch (err) {
+        console.warn('Analytics tracking error:', err);
+      }
+    },
+    [tenantId, enabled]
+  );
+
+  const trackEvent = useCallback(
+    (eventType: string, eventData: Record<string, unknown> = {}) => {
+      void track('event', {
+        event_type: eventType,
+        event_data: eventData,
+        page_url: window.location.pathname,
       });
-      if (error) console.warn('Analytics tracking failed:', error);
-    } catch (err) {
-      console.warn('Analytics tracking error:', err);
-    }
-  }, [tenantId, enabled]);
-
-  const trackEvent = useCallback((eventType: string, eventData: Record<string, unknown> = {}) => {
-    track('event', {
-      event_type: eventType,
-      event_data: eventData,
-      page_url: window.location.pathname,
-    });
-  }, [track]);
+    },
+    [track]
+  );
 
   const trackPageView = useCallback(() => {
     pageViewCount.current++;
     currentPage.current = window.location.pathname;
 
-    track('page_view', {
+    void track('page_view', {
       page_url: window.location.pathname,
       page_title: document.title,
-      load_time_ms: performance.now(),
+      // This is relative within the SPA lifecycle; still useful as a proxy
+      load_time_ms: Math.round(performance.now()),
     });
   }, [track]);
 
-  // Track session start on mount
+  const endSession = useCallback(() => {
+    if (hasEnded.current) return;
+    hasEnded.current = true;
+
+    const duration = Math.round((Date.now() - sessionStartTime.current) / 1000);
+    void track('session_end', {
+      duration_seconds: duration,
+      page_views: pageViewCount.current,
+      exit_page: currentPage.current,
+      is_bounce: pageViewCount.current <= 1,
+    });
+  }, [track]);
+
+  // Track session start + attach lifecycle handlers
   useEffect(() => {
     if (!enabled || !tenantId) return;
 
-    // Check if this is a new session
+    // Check if this is a new session (30 min timeout)
     const lastActivity = sessionStorage.getItem('analytics_last_activity');
-    const isNewSession = !lastActivity || (Date.now() - parseInt(lastActivity)) > 30 * 60 * 1000; // 30 min timeout
+    const isNewSession = !lastActivity || Date.now() - parseInt(lastActivity) > 30 * 60 * 1000;
 
     if (isNewSession) {
+      hasEnded.current = false;
       sessionId.current = uuidv4();
       sessionStorage.setItem('analytics_session_id', sessionId.current);
       sessionStartTime.current = Date.now();
+      pageViewCount.current = 0;
+      lastTrackedPath.current = null;
 
-      track('session_start', {
+      void track('session_start', {
         device_type: getDeviceType(),
         browser: getBrowser(),
         os: getOS(),
@@ -134,36 +159,50 @@ export function useStoreAnalytics({ tenantId, enabled = true }: AnalyticsConfig)
       });
     }
 
-    // Update last activity
     sessionStorage.setItem('analytics_last_activity', Date.now().toString());
 
-    // Track initial page view
-    trackPageView();
-
-    // Track session end on page unload
-    const handleUnload = () => {
-      const duration = Math.round((Date.now() - sessionStartTime.current) / 1000);
-      
-      // Use sendBeacon for reliable delivery
-      navigator.sendBeacon?.(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-analytics`,
-        JSON.stringify({
-          type: 'session_end',
-          session_id: sessionId.current,
-          visitor_id: visitorId.current,
-          data: {
-            duration_seconds: duration,
-            page_views: pageViewCount.current,
-            exit_page: currentPage.current,
-            is_bounce: pageViewCount.current <= 1,
-          },
-        })
-      );
+    const onVisibilityChange = () => {
+      // When the user backgrounds the tab/app, treat it as session end.
+      if (document.visibilityState === 'hidden') {
+        endSession();
+      } else {
+        sessionStorage.setItem('analytics_last_activity', Date.now().toString());
+      }
     };
 
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [tenantId, enabled, track, trackPageView]);
+    const onPageHide = () => endSession();
+    const onBeforeUnload = () => endSession();
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [tenantId, enabled, track, endSession]);
+
+  // Track SPA route changes (poll window.location.pathname)
+  useEffect(() => {
+    if (!enabled || !tenantId) return;
+
+    const tick = () => {
+      const path = window.location.pathname;
+      if (path !== lastTrackedPath.current) {
+        lastTrackedPath.current = path;
+        sessionStorage.setItem('analytics_last_activity', Date.now().toString());
+        trackPageView();
+      }
+    };
+
+    // Initial tick
+    tick();
+
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [tenantId, enabled, trackPageView]);
 
   // Track performance metrics
   useEffect(() => {
@@ -194,7 +233,7 @@ export function useStoreAnalytics({ tenantId, enabled = true }: AnalyticsConfig)
       }
 
       if (Object.keys(metrics).length > 0) {
-        track('performance', {
+        void track('performance', {
           ...metrics,
           page_url: window.location.pathname,
           device_type: getDeviceType(),
@@ -204,8 +243,10 @@ export function useStoreAnalytics({ tenantId, enabled = true }: AnalyticsConfig)
     });
 
     try {
-      observer.observe({ entryTypes: ['navigation', 'paint', 'largest-contentful-paint', 'first-input', 'layout-shift'] });
-    } catch (e) {
+      observer.observe({
+        entryTypes: ['navigation', 'paint', 'largest-contentful-paint', 'first-input', 'layout-shift'],
+      });
+    } catch {
       // Some entry types may not be supported
     }
 
@@ -214,3 +255,4 @@ export function useStoreAnalytics({ tenantId, enabled = true }: AnalyticsConfig)
 
   return { trackEvent, trackPageView };
 }
+
