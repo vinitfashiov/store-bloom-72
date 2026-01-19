@@ -3777,6 +3777,10 @@ export type Database = {
           trial_ends_at: string
         }[]
       }
+      order_belongs_to_tenant: {
+        Args: { _order_id: string; _tenant_id: string }
+        Returns: boolean
+      }
       reduce_stock_atomic: { Args: { p_items: Json }; Returns: boolean }
       refresh_today_analytics: {
         Args: { p_tenant_id: string }
