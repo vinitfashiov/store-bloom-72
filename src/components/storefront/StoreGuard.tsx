@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StoreAuthProvider } from '@/contexts/StoreAuthContext';
+import { StoreAnalyticsProvider } from '@/contexts/StoreAnalyticsContext';
 import { AlertTriangle, Trash2 } from 'lucide-react';
 import { StoreAnalyticsTracker } from '@/components/storefront/StoreAnalyticsTracker';
 
@@ -145,8 +146,10 @@ export default function StoreGuard({ children }: StoreGuardProps) {
 
   return (
     <StoreAuthProvider tenantId={tenant.id}>
-      <StoreAnalyticsTracker tenantId={tenant.id} />
-      {children}
+      <StoreAnalyticsProvider tenantId={tenant.id}>
+        <StoreAnalyticsTracker tenantId={tenant.id} />
+        {children}
+      </StoreAnalyticsProvider>
     </StoreAuthProvider>
   );
 }

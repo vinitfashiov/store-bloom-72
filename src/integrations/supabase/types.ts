@@ -3664,6 +3664,7 @@ export type Database = {
       }
     }
     Functions: {
+      aggregate_daily_analytics: { Args: never; Returns: undefined }
       check_stock_availability: {
         Args: { p_items: Json }
         Returns: {
@@ -3766,6 +3767,10 @@ export type Database = {
         }[]
       }
       reduce_stock_atomic: { Args: { p_items: Json }; Returns: boolean }
+      refresh_today_analytics: {
+        Args: { p_tenant_id: string }
+        Returns: undefined
+      }
       set_primary_tenant: {
         Args: { target_tenant_id: string }
         Returns: boolean

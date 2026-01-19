@@ -1,11 +1,13 @@
 /**
  * Enterprise Optimized Cart Hook
  * With instant optimistic updates for smooth UX
+ * Now includes analytics event tracking
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
+import { useStoreAnalyticsEvent } from '@/contexts/StoreAnalyticsContext';
 
 interface CartItem {
   id: string;
@@ -37,6 +39,7 @@ export function useCart(storeSlug: string, tenantId: string | null) {
   const [loading, setLoading] = useState(true);
   const [itemCount, setItemCount] = useState(0);
   const operationQueue = useRef<Map<string, NodeJS.Timeout>>(new Map());
+  const { trackEvent } = useStoreAnalyticsEvent();
 
   const getCartKey = () => `${CART_STORAGE_KEY}_${storeSlug}`;
 
@@ -160,12 +163,16 @@ export function useCart(storeSlug: string, tenantId: string | null) {
 
       // Sync with DB in background
       fetchCart(currentCart.id);
+
+      // Fire analytics event
+      trackEvent('add_to_cart', { product_id: productId, qty, price, cart_value: getSubtotal() + price * qty });
+
       return true;
     } catch (error) {
       console.error('Error in addToCart:', error);
       return false;
     }
-  }, [cart, tenantId, createCart, fetchCart]);
+  }, [cart, tenantId, createCart, fetchCart, trackEvent]);
 
   // INSTANT optimistic quantity update with debounced DB sync
   const updateQuantity = useCallback(async (itemId: string, qty: number) => {

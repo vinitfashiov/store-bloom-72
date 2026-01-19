@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useCart } from '@/hooks/useCart';
 import { useStoreAuth } from '@/contexts/StoreAuthContext';
+import { useStoreAnalyticsEvent } from '@/contexts/StoreAnalyticsContext';
 import { toast } from 'sonner';
 import { GroceryBottomNav } from '@/components/storefront/grocery/GroceryBottomNav';
 import { StoreHeader } from '@/components/storefront/StoreHeader';
@@ -83,6 +84,7 @@ export default function CheckoutPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { customer } = useStoreAuth();
+  const { trackEvent } = useStoreAnalyticsEvent();
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('cod');
   const [submitting, setSubmitting] = useState(false);
@@ -111,6 +113,15 @@ export default function CheckoutPage() {
   const [couponError, setCouponError] = useState('');
 
   const { cart, itemCount, getSubtotal, clearCart } = useCart(slug || '', tenant?.id || null);
+
+  // Track checkout_started when page loads with cart data
+  useEffect(() => {
+    if (cart && itemCount > 0 && tenant) {
+      trackEvent('checkout_started', { cart_value: getSubtotal(), item_count: itemCount });
+    }
+    // Only fire once when cart becomes available
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!cart, tenant?.id]);
 
   useEffect(() => {
     const fetchTenant = async () => {
@@ -348,6 +359,8 @@ export default function CheckoutPage() {
               body: { store_slug: slug, payment_intent_id: paymentIntentId, ...response }
             });
             if (verifyError || !verifyData?.success) throw new Error(verifyData?.error || 'Payment verification failed');
+            // Fire purchase_complete analytics for Razorpay success
+            trackEvent('purchase_complete', { order_number: verifyData.order_number || orderNumber, total: amount, payment_method: 'razorpay' });
             await clearCart();
             toast.success('Payment successful!');
             navigate(`/store/${slug}/order-confirmation?order=${verifyData.order_number || orderNumber}`);
@@ -584,6 +597,9 @@ export default function CheckoutPage() {
             status: 'unassigned'
           });
         }
+
+        // Fire purchase_complete analytics
+        trackEvent('purchase_complete', { order_number: orderNumber, total, item_count: cart.items.length });
 
         await clearCart();
         toast.success('Order placed successfully!');
