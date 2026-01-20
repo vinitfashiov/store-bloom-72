@@ -56,7 +56,10 @@ export function StoreAnalyticsProvider({ tenantId, children }: { tenantId: strin
 export function useStoreAnalyticsEvent() {
   const ctx = useContext(StoreAnalyticsContext);
   if (!ctx) {
-    // Return no-op if not within provider (for safety)
+    // Return no-op with warning in development
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('useStoreAnalyticsEvent called outside of StoreAnalyticsProvider');
+    }
     return { trackEvent: () => {} };
   }
   return ctx;
