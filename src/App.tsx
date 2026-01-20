@@ -9,6 +9,7 @@ import { CustomDomainProvider, useCustomDomain } from "@/contexts/CustomDomainCo
 import { CustomDomainRoutes } from "@/components/CustomDomainRoutes";
 import StoreGuard from "./components/storefront/StoreGuard";
 import { useStoreTenant } from "./hooks/useStoreTenant";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // Landing page is NOT lazy loaded - it's the first thing users see
 import Index from "./pages/Index";
@@ -203,19 +204,21 @@ function AppContent() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <CustomDomainProvider>
-          <Suspense fallback={<AppFallback />}>
-            <AppContent />
-          </Suspense>
-        </CustomDomainProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <CustomDomainProvider>
+            <Suspense fallback={<AppFallback />}>
+              <AppContent />
+            </Suspense>
+          </CustomDomainProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

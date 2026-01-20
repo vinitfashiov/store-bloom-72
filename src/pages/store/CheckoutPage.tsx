@@ -392,6 +392,29 @@ export default function CheckoutPage() {
     e.preventDefault();
     if (!cart || !tenant || cart.items.length === 0) return;
     
+    // Form validation
+    if (!form.name?.trim()) {
+      toast.error('Please enter your name');
+      return;
+    }
+    const phoneClean = form.phone?.replace(/\D/g, '') || '';
+    if (phoneClean.length !== 10 || !/^[6-9]/.test(phoneClean)) {
+      toast.error('Please enter a valid 10-digit phone number');
+      return;
+    }
+    if (!form.line1?.trim()) {
+      toast.error('Please enter your address');
+      return;
+    }
+    if (!form.city?.trim() || !form.state?.trim()) {
+      toast.error('Please enter city and state');
+      return;
+    }
+    if (!/^\d{6}$/.test(form.pincode || '')) {
+      toast.error('Please enter a valid 6-digit pincode');
+      return;
+    }
+    
     if (isGrocery) {
       if (zones.length > 0 && !selectedZone) {
         toast.error('Please enter a valid delivery pincode');
@@ -408,7 +431,8 @@ export default function CheckoutPage() {
     }
 
     setSubmitting(true);
-    const orderNumber = `ORD-${Date.now()}`;
+    // Use unique order number generation
+    const orderNumber = `ORD-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
     try {
       // Save new address if entered
@@ -470,6 +494,7 @@ export default function CheckoutPage() {
         if (piError || !paymentIntent) throw new Error('Failed to initiate payment');
         await handleRazorpayPayment(paymentIntent.id, orderNumber, total);
       } else {
+        // COD Order - Use atomic function for transaction safety
         const orderItemsData = cart.items.map(item => ({
           product_id: item.product_id,
           variant_id: (item as any).variant_id || null,
@@ -479,74 +504,38 @@ export default function CheckoutPage() {
           line_total: item.unit_price * item.qty
         }));
 
-        const { data: newOrder, error: orderError } = await supabase
-          .from('orders')
-          .insert({
-            tenant_id: tenant.id,
-            order_number: orderNumber,
-            customer_id: customer?.id || null,
-            customer_name: form.name,
-            customer_phone: form.phone,
-            customer_email: form.email || null,
-            shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
-            subtotal: subtotal,
-            discount_total: discountTotal,
-            delivery_fee: deliveryFee,
-            total: total,
-            payment_method: paymentMethod,
-            payment_status: 'unpaid',
-            status: 'pending',
-            delivery_zone_id: selectedZone?.id || null,
-            delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
-            delivery_option: isGrocery ? deliveryOption : 'standard',
-            coupon_id: appliedCoupon?.coupon_id || null,
-            coupon_code: appliedCoupon?.coupon_code || null
-          })
-          .select('id')
-          .single();
-
-        const orderId = newOrder?.id;
-
-        if (!orderError && orderId) {
-          const orderItems = orderItemsData.map(item => ({
-            tenant_id: tenant.id,
-            order_id: orderId,
-            product_id: item.product_id,
-            variant_id: item.variant_id,
-            name: item.name,
-            qty: item.qty,
-            unit_price: item.unit_price,
-            line_total: item.line_total
-          }));
-          await supabase.from('order_items').insert(orderItems);
-          await supabase.from('carts').update({ status: 'converted' }).eq('id', cart.id);
-
-          // Performance: avoid N+1 (fetch+update) loops; batch fetch and run updates in parallel
-          const productIds = orderItemsData.map(i => i.product_id).filter(Boolean) as string[];
-          if (productIds.length > 0) {
-            const { data: productsForStock } = await supabase
-              .from('products')
-              .select('id, stock_qty')
-              .in('id', productIds);
-
-            const stockMap = new Map<string, number>();
-            (productsForStock || []).forEach((p: any) => stockMap.set(p.id, Number(p.stock_qty || 0)));
-
-            await Promise.all(
-              orderItemsData.map(async (item) => {
-                const current = stockMap.get(item.product_id) ?? 0;
-                const next = Math.max(0, current - item.qty);
-                return supabase
-                  .from('products')
-                  .update({ stock_qty: next })
-                  .eq('id', item.product_id);
-              })
-            );
-          }
-        }
+        // Use atomic order creation to prevent race conditions
+        const { data: orderId, error: orderError } = await supabase.rpc('create_order_atomic', {
+          p_tenant_id: tenant.id,
+          p_order_number: orderNumber,
+          p_customer_id: customer?.id || null,
+          p_customer_name: form.name,
+          p_customer_phone: form.phone,
+          p_customer_email: form.email || null,
+          p_shipping_address: { line1: form.line1, line2: form.line2, city: form.city, state: form.state, pincode: form.pincode },
+          p_subtotal: subtotal,
+          p_discount_total: discountTotal,
+          p_delivery_fee: deliveryFee,
+          p_total: total,
+          p_payment_method: paymentMethod,
+          p_payment_status: 'unpaid',
+          p_status: 'pending',
+          p_delivery_zone_id: selectedZone?.id || null,
+          p_delivery_slot_id: deliveryOption === 'slot' ? selectedSlotId || null : null,
+          p_delivery_option: isGrocery ? deliveryOption : 'standard',
+          p_coupon_id: appliedCoupon?.coupon_id || null,
+          p_coupon_code: appliedCoupon?.coupon_code || null,
+          p_order_items: orderItemsData,
+          p_cart_id: cart.id
+        });
 
         if (orderError) {
-          toast.error(orderError.message || 'Failed to create order');
+          console.error('Order creation error:', orderError);
+          if (orderError.message?.includes('Insufficient stock')) {
+            toast.error('Some items are out of stock. Please update your cart.');
+          } else {
+            toast.error(orderError.message || 'Failed to create order');
+          }
           setSubmitting(false);
           return;
         }
@@ -557,6 +546,7 @@ export default function CheckoutPage() {
           return;
         }
 
+        // Record coupon redemption if applicable (using atomic increment)
         if (appliedCoupon) {
           await supabase.from('coupon_redemptions').insert({
             tenant_id: tenant.id,
@@ -566,19 +556,13 @@ export default function CheckoutPage() {
             discount_amount: discountTotal
           });
           
-          const { data: coupon } = await supabase
-            .from('coupons')
-            .select('used_count')
-            .eq('id', appliedCoupon.coupon_id)
-            .single();
-          if (coupon) {
-            await supabase
-              .from('coupons')
-              .update({ used_count: coupon.used_count + 1 })
-              .eq('id', appliedCoupon.coupon_id);
-          }
+          // Use atomic coupon increment to prevent race conditions
+          await supabase.rpc('increment_coupon_usage', {
+            p_coupon_id: appliedCoupon.coupon_id
+          });
         }
 
+        // Create delivery assignment for grocery stores
         if (isGrocery) {
           const { data: deliveryAreas } = await supabase
             .from('delivery_areas')
@@ -590,12 +574,17 @@ export default function CheckoutPage() {
             area.pincodes?.includes(form.pincode)
           );
 
-          await supabase.from('delivery_assignments').insert({
+          const { error: assignmentError } = await supabase.from('delivery_assignments').insert({
             tenant_id: tenant.id,
             order_id: orderId,
             delivery_area_id: matchedArea?.id || null,
             status: 'unassigned'
           });
+          
+          if (assignmentError) {
+            console.error('Delivery assignment error:', assignmentError);
+            // Don't fail the order, just log the error
+          }
         }
 
         // Fire purchase_complete analytics

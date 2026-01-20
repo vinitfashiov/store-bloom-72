@@ -122,8 +122,10 @@ export function useCart(storeSlug: string, tenantId: string | null) {
 
       const existingItem = currentCart.items.find(item => item.product_id === productId);
       
-      // INSTANT optimistic update
+      // INSTANT optimistic update with proper temp ID handling
       const newQty = existingItem ? existingItem.qty + qty : qty;
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      
       setCart(prev => {
         if (!prev) return prev;
         const updatedItems = existingItem
@@ -133,7 +135,7 @@ export function useCart(storeSlug: string, tenantId: string | null) {
                 : item
             )
           : [...prev.items, { 
-              id: `temp-${Date.now()}`, 
+              id: tempId, 
               product_id: productId, 
               qty, 
               unit_price: price,
@@ -143,22 +145,47 @@ export function useCart(storeSlug: string, tenantId: string | null) {
       });
       setItemCount(prev => prev + qty);
       
-      // Background DB update
-      if (existingItem) {
-        await supabase
-          .from('cart_items')
-          .update({ qty: newQty })
-          .eq('id', existingItem.id);
-      } else {
-        await supabase
-          .from('cart_items')
-          .insert({
-            tenant_id: tenantId,
-            cart_id: currentCart.id,
-            product_id: productId,
-            qty,
-            unit_price: price
-          });
+      // Background DB update with error handling
+      try {
+        if (existingItem) {
+          const { error } = await supabase
+            .from('cart_items')
+            .update({ qty: newQty })
+            .eq('id', existingItem.id);
+          
+          if (error) throw error;
+        } else {
+          const { data, error } = await supabase
+            .from('cart_items')
+            .insert({
+              tenant_id: tenantId,
+              cart_id: currentCart.id,
+              product_id: productId,
+              qty,
+              unit_price: price
+            })
+            .select('id')
+            .single();
+          
+          if (error) throw error;
+          
+          // Replace temp ID with real ID
+          if (data) {
+            setCart(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                items: prev.items.map(item => 
+                  item.id === tempId ? { ...item, id: data.id } : item
+                )
+              };
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to sync cart:', error);
+        // Rollback optimistic update on error
+        fetchCart(currentCart.id);
       }
 
       // Sync with DB in background

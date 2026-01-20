@@ -218,84 +218,66 @@ export default function AdminPOS({ tenantId }: AdminPOSProps) {
       changeAmt = (cashAmt + onlineAmt) - total;
     }
 
-    const saleNumber = `POS-${Date.now().toString().slice(-8)}`;
-
-    // Create POS sale
-    const { data: sale, error: saleError } = await supabase
-      .from('pos_sales')
-      .insert({
-        tenant_id: tenantId,
-        sale_number: saleNumber,
-        customer_id: selectedCustomer?.id || null,
-        customer_name: customerName || 'Walk-in Customer',
-        customer_phone: customerPhone || null,
-        subtotal,
-        discount_amount: itemDiscounts + cartDiscount,
-        total,
-        payment_method: paymentMethod,
-        cash_amount: cashAmt || null,
-        online_amount: onlineAmt || null,
-        change_amount: changeAmt || null
-      })
-      .select()
-      .single();
-
-    if (saleError || !sale) {
-      toast.error('Failed to create sale');
-      return;
-    }
-
-    // Create sale items (batch insert)
-    const saleItems = cart.map(item => ({
-      tenant_id: tenantId,
-      pos_sale_id: sale.id,
+    // Use atomic function for sale creation with stock updates
+    const saleNumber = `POS-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    
+    const itemsData = cart.map(item => ({
       product_id: item.product_id,
-      product_name: item.name,
+      name: item.name,
+      price: item.price,
       quantity: item.quantity,
-      unit_price: item.price,
-      discount_amount: item.discount,
-      line_total: (item.price * item.quantity) - item.discount
+      discount: item.discount
     }));
 
-    await supabase.from('pos_sale_items').insert(saleItems);
+    try {
+      const { data: saleId, error: saleError } = await supabase.rpc('create_pos_sale_atomic', {
+        p_tenant_id: tenantId,
+        p_sale_number: saleNumber,
+        p_customer_id: selectedCustomer?.id || null,
+        p_customer_name: customerName || 'Walk-in Customer',
+        p_customer_phone: customerPhone || null,
+        p_subtotal: subtotal,
+        p_discount_amount: itemDiscounts + cartDiscount,
+        p_total: total,
+        p_payment_method: paymentMethod,
+        p_cash_amount: cashAmt || null,
+        p_online_amount: onlineAmt || null,
+        p_change_amount: changeAmt || null,
+        p_items: itemsData
+      });
 
-    // Prepare inventory movements for batch insert
-    const inventoryMovements = cart.map(item => ({
-      tenant_id: tenantId,
-      product_id: item.product_id,
-      variant_id: null,
-      movement_type: 'pos_sale' as const,
-      quantity: -item.quantity,
-      reference_type: 'pos_sale',
-      reference_id: sale.id,
-      notes: `POS Sale ${saleNumber}`
-    }));
-
-    // Batch insert inventory movements
-    await supabase.from('inventory_movements').insert(inventoryMovements);
-
-    // Batch update stock - fetch current stock and decrement
-    for (const item of cart) {
-      const product = products.find(p => p.id === item.product_id);
-      if (product) {
-        await supabase
-          .from('products')
-          .update({ stock_qty: Math.max(0, product.stock_qty - item.quantity) })
-          .eq('id', item.product_id);
+      if (saleError) {
+        console.error('POS sale error:', saleError);
+        if (saleError.message?.includes('Insufficient stock')) {
+          toast.error('Insufficient stock for one or more items');
+        } else {
+          toast.error('Failed to complete sale');
+        }
+        return;
       }
+
+      // Fetch the created sale for receipt
+      const { data: sale } = await supabase
+        .from('pos_sales')
+        .select('*')
+        .eq('id', saleId)
+        .single();
+
+      setLastSale({
+        ...sale,
+        items: cart,
+        change: changeAmt
+      });
+
+      toast.success('Sale completed!');
+      setShowPaymentDialog(false);
+      setShowReceiptDialog(true);
+      clearCart();
+      fetchProducts(); // Refresh stock
+    } catch (error: any) {
+      console.error('POS sale error:', error);
+      toast.error(error.message || 'Failed to complete sale');
     }
-
-    setLastSale({
-      ...sale,
-      items: cart,
-      change: changeAmt
-    });
-
-    toast.success('Sale completed!');
-    setShowPaymentDialog(false);
-    setShowReceiptDialog(true);
-    clearCart();
-    fetchProducts(); // Refresh stock
   }
 
   function printReceipt() {

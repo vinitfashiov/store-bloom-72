@@ -3675,7 +3675,57 @@ export type Database = {
           variant_id: string
         }[]
       }
+      create_order_atomic: {
+        Args: {
+          p_cart_id?: string
+          p_coupon_code?: string
+          p_coupon_id?: string
+          p_customer_email?: string
+          p_customer_id?: string
+          p_customer_name?: string
+          p_customer_phone?: string
+          p_delivery_fee?: number
+          p_delivery_option?: string
+          p_delivery_slot_id?: string
+          p_delivery_zone_id?: string
+          p_discount_total?: number
+          p_order_items?: Json
+          p_order_number: string
+          p_payment_method?: string
+          p_payment_status?: string
+          p_razorpay_order_id?: string
+          p_razorpay_payment_id?: string
+          p_shipping_address?: Json
+          p_status?: string
+          p_subtotal?: number
+          p_tenant_id: string
+          p_total?: number
+        }
+        Returns: string
+      }
+      create_pos_sale_atomic: {
+        Args: {
+          p_cash_amount?: number
+          p_change_amount?: number
+          p_customer_id?: string
+          p_customer_name?: string
+          p_customer_phone?: string
+          p_discount_amount?: number
+          p_items?: Json
+          p_online_amount?: number
+          p_payment_method?: string
+          p_sale_number: string
+          p_subtotal?: number
+          p_tenant_id: string
+          p_total?: number
+        }
+        Returns: string
+      }
       delete_tenant: { Args: { target_tenant_id: string }; Returns: boolean }
+      generate_unique_order_number: {
+        Args: { p_prefix?: string; p_tenant_id: string }
+        Returns: string
+      }
       get_analytics_daily: {
         Args: { p_date_from: string; p_date_to: string; p_tenant_id: string }
         Returns: {
@@ -3776,6 +3826,10 @@ export type Database = {
           store_slug: string
           trial_ends_at: string
         }[]
+      }
+      increment_coupon_usage: {
+        Args: { p_coupon_id: string }
+        Returns: undefined
       }
       order_belongs_to_tenant: {
         Args: { _order_id: string; _tenant_id: string }
