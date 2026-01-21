@@ -1,24 +1,8 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Store,
-  ArrowRight,
-  Zap,
-  Shield,
-  Globe,
-  CreditCard,
-  Check,
-  Users,
-  BarChart3,
-} from "lucide-react";
+import { Store, ArrowRight, Zap, Shield, Globe, CreditCard, Check, Users, BarChart3 } from "lucide-react";
 
 export default function Index() {
   return (
@@ -35,12 +19,8 @@ export default function Index() {
                 </div>
               </div>
               <div className="leading-none">
-                <div className="text-lg font-display font-bold tracking-tight">
-                  Storekriti
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Multi-tenant commerce
-                </div>
+                <div className="text-lg font-display font-bold tracking-tight">Storekriti</div>
+                <div className="text-[11px] text-muted-foreground">Multi-tenant commerce</div>
               </div>
             </div>
 
@@ -94,17 +74,12 @@ export default function Index() {
             </h1>
 
             <p className="mt-6 text-base md:text-xl text-muted-foreground max-w-2xl mx-auto">
-              The all-in-one multi-tenant platform to launch, manage, and scale
-              your e-commerce or grocery store. Fast setup. Secure by design. No
-              coding required.
+              The all-in-one multi-tenant platform to launch, manage, and scale your e-commerce or grocery store. Fast
+              setup. Secure by design. No coding required.
             </p>
 
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Button
-                asChild
-                size="lg"
-                className="shadow-glow text-base px-8 py-6"
-              >
+              <Button asChild size="lg" className="shadow-glow text-base px-8 py-6">
                 <Link to="/authentication">
                   Start Free Trial <ArrowRight className="w-5 h-5 ml-2" />
                 </Link>
@@ -123,16 +98,9 @@ export default function Index() {
                 { k: "1-Click", v: "Store setup" },
                 { k: "Secure", v: "Isolated tenants" },
               ].map((i) => (
-                <div
-                  key={i.k}
-                  className="rounded-xl border bg-background/40 backdrop-blur px-4 py-3 text-left"
-                >
-                  <div className="font-display font-bold tracking-tight">
-                    {i.k}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {i.v}
-                  </div>
+                <div key={i.k} className="rounded-xl border bg-background/40 backdrop-blur px-4 py-3 text-left">
+                  <div className="font-display font-bold tracking-tight">{i.k}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{i.v}</div>
                 </div>
               ))}
             </div>
@@ -151,8 +119,7 @@ export default function Index() {
               Everything you need to succeed
             </h2>
             <p className="mt-4 text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
-              Powerful tools to launch, grow, and manage your store with
-              enterprise-level performance and simplicity.
+              Powerful tools to launch, grow, and manage your store with enterprise-level performance and simplicity.
             </p>
           </div>
 
@@ -206,9 +173,7 @@ export default function Index() {
                   >
                     <f.icon className="w-7 h-7" />
                   </div>
-                  <h3 className="text-lg md:text-xl font-display font-semibold mb-2">
-                    {f.title}
-                  </h3>
+                  <h3 className="text-lg md:text-xl font-display font-semibold mb-2">{f.title}</h3>
                   <p className="text-muted-foreground">{f.desc}</p>
                 </CardContent>
               </Card>
@@ -216,10 +181,7 @@ export default function Index() {
           </div>
 
           {/* Security strip */}
-          <div
-            id="security"
-            className="mt-12 rounded-2xl border bg-muted/20 p-6 md:p-8"
-          >
+          <div id="security" className="mt-12 rounded-2xl border bg-muted/20 p-6 md:p-8">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border bg-background/60 px-3 py-1 text-xs text-muted-foreground">
@@ -230,8 +192,8 @@ export default function Index() {
                   Isolated stores. Protected data.
                 </h3>
                 <p className="mt-2 text-muted-foreground max-w-2xl">
-                  Every tenant is separated to keep customer data secure. Built
-                  with best practices and modern infrastructure patterns.
+                  Every tenant is separated to keep customer data secure. Built with best practices and modern
+                  infrastructure patterns.
                 </p>
               </div>
 
@@ -263,31 +225,24 @@ export default function Index() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
             <Card className="relative border bg-background/70 backdrop-blur">
               <CardHeader>
-                <CardTitle className="text-2xl font-display font-bold">
-                  Free Trial
-                </CardTitle>
+                <CardTitle className="text-2xl font-display font-bold">Free Trial</CardTitle>
                 <CardDescription>Perfect for getting started</CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="mb-6">
-                  <span className="text-4xl font-display font-bold tracking-tight">
-                    ₹0
-                  </span>
+                  <span className="text-4xl font-display font-bold tracking-tight">₹0</span>
                   <span className="text-muted-foreground"> / 7 days</span>
                 </div>
 
                 <ul className="space-y-3 mb-8">
-                  {[
-                    "Full store functionality",
-                    "Up to 10 products",
-                    "Basic analytics",
-                    "Email support",
-                  ].map((feature) => (
-                    <li key={feature} className="flex items-center gap-2">
-                      <Check className="w-5 h-5 text-emerald-600" />
-                      <span className="text-muted-foreground">{feature}</span>
-                    </li>
-                  ))}
+                  {["Full store functionality", "Up to 10 products", "Basic analytics", "Email support"].map(
+                    (feature) => (
+                      <li key={feature} className="flex items-center gap-2">
+                        <Check className="w-5 h-5 text-emerald-600" />
+                        <span className="text-muted-foreground">{feature}</span>
+                      </li>
+                    ),
+                  )}
                 </ul>
 
                 <Button asChild variant="outline" className="w-full">
@@ -298,23 +253,17 @@ export default function Index() {
 
             <Card className="relative border-primary/50 shadow-glow bg-background/70 backdrop-blur">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                <Badge className="gradient-primary text-primary-foreground border-0">
-                  Most Popular
-                </Badge>
+                <Badge className="gradient-primary text-primary-foreground border-0">Most Popular</Badge>
               </div>
 
               <CardHeader>
-                <CardTitle className="text-2xl font-display font-bold">
-                  Pro Plan
-                </CardTitle>
+                <CardTitle className="text-2xl font-display font-bold">Pro Plan</CardTitle>
                 <CardDescription>For growing businesses</CardDescription>
               </CardHeader>
 
               <CardContent className="pt-0">
                 <div className="mb-6">
-                  <span className="text-4xl font-display font-bold tracking-tight">
-                    ₹1
-                  </span>
+                  <span className="text-4xl font-display font-bold tracking-tight">₹1</span>
                   <span className="text-muted-foreground"> / month</span>
                 </div>
 
@@ -351,23 +300,16 @@ export default function Index() {
               Ready to launch your store?
             </h2>
             <p className="mt-4 text-base md:text-xl text-muted-foreground">
-              Join entrepreneurs building modern online businesses with
-              Storekriti.
+              Join entrepreneurs building modern online businesses with Storekriti.
             </p>
             <div className="mt-8">
-              <Button
-                asChild
-                size="lg"
-                className="shadow-glow text-base px-10 py-6"
-              >
+              <Button asChild size="lg" className="shadow-glow text-base px-10 py-6">
                 <Link to="/authentication">
                   Start Your Free Trial <ArrowRight className="w-5 h-5 ml-2" />
                 </Link>
               </Button>
             </div>
-            <div className="mt-4 text-xs text-muted-foreground">
-              No credit card required
-            </div>
+            <div className="mt-4 text-xs text-muted-foreground">No credit card required</div>
           </div>
         </div>
       </section>
@@ -381,17 +323,13 @@ export default function Index() {
                 <Store className="w-4 h-4 text-primary-foreground" />
               </div>
               <div className="leading-none">
-                <div className="font-display font-semibold tracking-tight">
-                  Storekriti
-                </div>
-                <div className="text-[11px] text-muted-foreground">
-                  Built for modern commerce
-                </div>
+                <div className="font-display font-semibold tracking-tight">Storekriti</div>
+                <div className="text-[11px] text-muted-foreground">Built for modern commerce</div>
               </div>
             </div>
 
             <p className="text-xs sm:text-sm text-muted-foreground">
-              © 2026 StoreSaaS. All rights reserved.
+              © 2026 Storekriti. Owned and Operated by: Shailendra Singh.
             </p>
           </div>
         </div>
