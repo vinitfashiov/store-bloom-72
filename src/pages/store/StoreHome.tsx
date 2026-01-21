@@ -2,6 +2,7 @@ import { useState, useCallback, memo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StoreHeader } from '@/components/storefront/StoreHeader';
 import { StoreFooter } from '@/components/storefront/StoreFooter';
@@ -10,6 +11,8 @@ import { CategorySection } from '@/components/storefront/CategorySection';
 import { BrandSection } from '@/components/storefront/BrandSection';
 import { ProductSection } from '@/components/storefront/ProductSection';
 import { PromoStrip } from '@/components/storefront/PromoStrip';
+import { UnifiedBottomNav } from '@/components/storefront/unified/UnifiedBottomNav';
+import { UnifiedProductCard } from '@/components/storefront/unified/UnifiedProductCard';
 import { GroceryHeader } from '@/components/storefront/grocery/GroceryHeader';
 import { GroceryBottomNav } from '@/components/storefront/grocery/GroceryBottomNav';
 import { GroceryPromoBanner } from '@/components/storefront/grocery/GroceryPromoBanner';
@@ -29,6 +32,7 @@ import { GrapesJSRenderer, useHasGrapesJSLayout } from '@/components/pageBuilder
 import { GroceryLocationProvider, useGroceryLocation } from '@/contexts/GroceryLocationContext';
 import { useCart } from '@/hooks/useCart';
 import { useCustomDomain } from '@/contexts/CustomDomainContext';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   useStoreData, 
   useStoreSettings, 
@@ -38,7 +42,7 @@ import {
   useStoreProducts
 } from '@/hooks/useOptimizedQueries';
 import { toast } from 'sonner';
-import { Store } from 'lucide-react';
+import { Store, Search, Heart, User, ShoppingCart, Package, ArrowRight } from 'lucide-react';
 
 // Ultra-minimal loading - just a subtle indicator, content shell shows immediately
 const LoadingSkeleton = memo(() => (
@@ -193,8 +197,10 @@ function GroceryStoreContent({
             logoPath={storeSettings?.logo_path}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
+            onSearchSubmit={handleSearchSubmit}
             deliveryAddress={storeSettings?.store_address || tenant.address || undefined}
             cartCount={itemCount}
+            onLocationClick={handleLocationClick}
           />
         </div>
       )}
@@ -289,6 +295,7 @@ function GroceryStoreContent({
 
 export default function StoreHome() {
   const { slug: urlSlug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const customDomain = useCustomDomain();
   
   const slug = customDomain.isCustomDomain && customDomain.tenant 
@@ -385,23 +392,124 @@ export default function StoreHome() {
     );
   }
 
-  // E-commerce Store Layout - Use GrapesJS (HTML/CSS) first, then JSON Page Builder, otherwise default
+  // E-commerce Store Layout - Now using unified grocery-style design
+  const handleEcommerceSearch = () => {
+    if (searchQuery.trim()) {
+      navigate(`/store/${tenant.store_slug}/products?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-neutral-50 flex flex-col pb-20 lg:pb-0">
+      {/* Mobile Header - Grocery Style */}
       {showHeader && (
-        <StoreHeader
-          storeName={tenant.store_name}
-          storeSlug={tenant.store_slug}
-          businessType={tenant.business_type}
-          cartCount={itemCount}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          logoPath={storeSettings?.logo_path}
-          categories={categories}
-        />
+        <div className="lg:hidden">
+          <header className="bg-white sticky top-0 z-40">
+            <div className="px-4 py-3 border-b border-neutral-100">
+              <div className="flex items-center justify-between gap-3">
+                <Link to={`/store/${tenant.store_slug}`} className="flex items-center gap-2">
+                  {storeSettings?.logo_path ? (
+                    <img 
+                      src={storeSettings.logo_path.startsWith('http') ? storeSettings.logo_path : supabase.storage.from('store-assets').getPublicUrl(storeSettings.logo_path).data.publicUrl} 
+                      alt={tenant.store_name} 
+                      className="h-8 w-auto object-contain" 
+                    />
+                  ) : (
+                    <span className="font-bold text-xl text-primary">{tenant.store_name}</span>
+                  )}
+                </Link>
+                <div className="flex items-center gap-1">
+                  <Link to={`/store/${tenant.store_slug}/wishlist`}>
+                    <Button variant="ghost" size="icon" className="rounded-full h-10 w-10">
+                      <Heart className="w-5 h-5 text-neutral-700" />
+                    </Button>
+                  </Link>
+                  <Link to={`/store/${tenant.store_slug}/account`}>
+                    <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-primary/10 hover:bg-primary/20">
+                      <User className="w-5 h-5 text-primary" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+            <div className="px-4 py-3">
+              <div className="relative flex items-center bg-neutral-100 rounded-xl">
+                <Search className="absolute left-4 w-5 h-5 text-neutral-400" />
+                <Input
+                  placeholder={`Search in ${tenant.store_name}`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleEcommerceSearch()}
+                  className="pl-12 pr-4 h-12 bg-transparent border-none rounded-xl focus-visible:ring-0 text-base placeholder:text-neutral-400"
+                />
+              </div>
+            </div>
+          </header>
+        </div>
       )}
 
-      {/* Render builder content if available, otherwise default layout */}
+      {/* Desktop Header - Grocery Style */}
+      {showHeader && (
+        <div className="hidden lg:block">
+          <header className="bg-white sticky top-0 z-50 border-b border-neutral-100">
+            <div className="max-w-7xl mx-auto px-6 py-3">
+              <div className="flex items-center gap-6">
+                <Link to={`/store/${tenant.store_slug}`} className="flex items-center gap-2 shrink-0">
+                  {storeSettings?.logo_path ? (
+                    <img 
+                      src={storeSettings.logo_path.startsWith('http') ? storeSettings.logo_path : supabase.storage.from('store-assets').getPublicUrl(storeSettings.logo_path).data.publicUrl} 
+                      alt={tenant.store_name} 
+                      className="h-10 w-auto object-contain" 
+                    />
+                  ) : (
+                    <span className="font-bold text-2xl text-primary">{tenant.store_name}</span>
+                  )}
+                </Link>
+
+                <div className="flex-1 max-w-2xl">
+                  <div className="relative flex items-center bg-neutral-100 rounded-lg">
+                    <Search className="absolute left-4 w-5 h-5 text-neutral-400" />
+                    <Input
+                      placeholder={`Search products...`}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleEcommerceSearch()}
+                      className="pl-12 pr-4 h-11 bg-transparent border-none rounded-lg focus-visible:ring-0 text-base"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <Link to={`/store/${tenant.store_slug}/wishlist`}>
+                    <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 text-neutral-600 hover:text-primary hover:bg-primary/10">
+                      <Heart className="w-5 h-5" />
+                    </Button>
+                  </Link>
+                  <Link to={`/store/${tenant.store_slug}/account`}>
+                    <Button variant="ghost" className="text-neutral-700 hover:text-primary hover:bg-primary/10 font-medium">
+                      <User className="w-4 h-4 mr-2" />
+                      Account
+                    </Button>
+                  </Link>
+                  <Link to={`/store/${tenant.store_slug}/cart`}>
+                    <Button className="bg-primary hover:bg-primary/90 text-white font-medium h-10 px-4 rounded-lg">
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Cart
+                      {itemCount > 0 && (
+                        <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-sm">
+                          {itemCount}
+                        </span>
+                      )}
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </header>
+        </div>
+      )}
+
+      {/* Render builder content if available */}
       {hasGrapesLayout ? (
         <GrapesJSRenderer tenantId={tenant.id} />
       ) : hasPublishedLayout ? (
@@ -412,52 +520,235 @@ export default function StoreHome() {
           addingProductId={addingProduct}
         />
       ) : (
-        <>
-          <HeroBanner
-            banners={banners}
-            storeSlug={tenant.store_slug}
-            storeName={tenant.store_name}
-            storeDescription={storeSettings?.website_description}
-          />
+        <main className="flex-1 bg-white lg:bg-neutral-50">
+          {/* Mobile Layout */}
+          <div className="lg:hidden">
+            <HeroBanner
+              banners={banners}
+              storeSlug={tenant.store_slug}
+              storeName={tenant.store_name}
+              storeDescription={storeSettings?.website_description}
+            />
+            
+            {/* Categories Grid - Compact mobile style */}
+            {categories.length > 0 && (
+              <section className="py-4 px-4">
+                <h2 className="font-semibold text-lg mb-3 text-neutral-900">Shop by Category</h2>
+                <div className="grid grid-cols-4 gap-3">
+                  {categories.slice(0, 8).map((category: any) => (
+                    <Link 
+                      key={category.id}
+                      to={`/store/${tenant.store_slug}/products?category=${category.slug}`}
+                      className="flex flex-col items-center gap-2"
+                    >
+                      <div className="w-16 h-16 rounded-xl bg-neutral-100 flex items-center justify-center">
+                        <Package className="w-6 h-6 text-neutral-400" />
+                      </div>
+                      <span className="text-xs text-center text-neutral-700 line-clamp-2">{category.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
-          <CategorySection categories={categories} storeSlug={tenant.store_slug} />
+            {/* Products - Compact Cards */}
+            {products.length > 0 && (
+              <section className="py-4 px-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-semibold text-lg text-neutral-900">Best Sellers</h2>
+                  <Link to={`/store/${tenant.store_slug}/products`} className="text-sm text-primary font-medium">
+                    See all
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {products.slice(0, 4).map((product: any) => (
+                    <UnifiedProductCard
+                      key={product.id}
+                      product={product}
+                      storeSlug={tenant.store_slug}
+                      onAddToCart={handleAddToCart}
+                      isAdding={addingProduct === product.id}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
-          <ProductSection
-            title="Best Sellers"
-            subtitle="Top picks our customers can't get enough of — for good reason. They're equal parts stylish and versatile!"
-            products={products as any}
-            storeSlug={tenant.store_slug}
-            onAddToCart={handleAddToCart}
-            addingProductId={addingProduct}
-          />
+            {/* Brands Scroll */}
+            {brands.length > 0 && (
+              <section className="py-4">
+                <h2 className="font-semibold text-lg mb-3 px-4 text-neutral-900">Top Brands</h2>
+                <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+                  {brands.map((brand: any) => (
+                    <Link 
+                      key={brand.id}
+                      to={`/store/${tenant.store_slug}/products?brand=${brand.slug}`}
+                      className="flex-shrink-0 w-20 h-20 rounded-xl bg-white border border-neutral-100 flex items-center justify-center p-2 hover:border-primary/30 transition-colors"
+                    >
+                      {brand.logo_path ? (
+                        <img 
+                          src={brand.logo_path.startsWith('http') ? brand.logo_path : supabase.storage.from('brand-logos').getPublicUrl(brand.logo_path).data.publicUrl}
+                          alt={brand.name}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-xs text-center text-neutral-600 font-medium">{brand.name}</span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
-          <BrandSection brands={brands} storeSlug={tenant.store_slug} />
+            {/* New Arrivals */}
+            {newProducts.length > 0 && (
+              <section className="py-4 px-4 bg-neutral-50">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-semibold text-lg text-neutral-900">New Arrivals</h2>
+                  <Link to={`/store/${tenant.store_slug}/products`} className="text-sm text-primary font-medium">
+                    See all
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {newProducts.slice(0, 4).map((product: any) => (
+                    <UnifiedProductCard
+                      key={product.id}
+                      product={product}
+                      storeSlug={tenant.store_slug}
+                      onAddToCart={handleAddToCart}
+                      isAdding={addingProduct === product.id}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
 
-          <ProductSection
-            title="Now Trending"
-            subtitle="These aren't just new pieces — they're the ones everyone's talking about."
-            products={newProducts as any}
-            storeSlug={tenant.store_slug}
-            onAddToCart={handleAddToCart}
-            addingProductId={addingProduct}
-            bgColor="bg-neutral-50"
-            variant="carousel"
-          />
+          {/* Desktop Layout */}
+          <div className="hidden lg:block max-w-7xl mx-auto py-6">
+            <HeroBanner
+              banners={banners}
+              storeSlug={tenant.store_slug}
+              storeName={tenant.store_name}
+              storeDescription={storeSettings?.website_description}
+            />
+            
+            {/* Desktop Categories */}
+            {categories.length > 0 && (
+              <section className="py-8 px-6">
+                <h2 className="font-semibold text-xl mb-4 text-neutral-900">Shop by Category</h2>
+                <div className="grid grid-cols-6 gap-4">
+                  {categories.slice(0, 12).map((category: any) => (
+                    <Link 
+                      key={category.id}
+                      to={`/store/${tenant.store_slug}/products?category=${category.slug}`}
+                      className="flex flex-col items-center gap-3 p-4 rounded-xl bg-white border border-neutral-100 hover:border-primary/30 hover:shadow-sm transition-all"
+                    >
+                      <div className="w-16 h-16 rounded-full bg-neutral-100 flex items-center justify-center">
+                        <Package className="w-7 h-7 text-neutral-400" />
+                      </div>
+                      <span className="text-sm text-center text-neutral-700 font-medium">{category.name}</span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
 
-          <PromoStrip storeSlug={tenant.store_slug} />
-        </>
+            {/* Desktop Products Grid */}
+            {products.length > 0 && (
+              <section className="py-8 px-6 bg-white rounded-xl mx-6 mb-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="font-semibold text-xl text-neutral-900">Best Sellers</h2>
+                  <Link to={`/store/${tenant.store_slug}/products`}>
+                    <Button variant="outline" size="sm" className="rounded-full">
+                      View All <ArrowRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </Link>
+                </div>
+                <div className="grid grid-cols-5 gap-4">
+                  {products.slice(0, 10).map((product: any) => (
+                    <UnifiedProductCard
+                      key={product.id}
+                      product={product}
+                      storeSlug={tenant.store_slug}
+                      onAddToCart={handleAddToCart}
+                      isAdding={addingProduct === product.id}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Desktop Brands */}
+            {brands.length > 0 && (
+              <section className="py-8 px-6">
+                <h2 className="font-semibold text-xl mb-4 text-neutral-900">Top Brands</h2>
+                <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                  {brands.map((brand: any) => (
+                    <Link 
+                      key={brand.id}
+                      to={`/store/${tenant.store_slug}/products?brand=${brand.slug}`}
+                      className="flex-shrink-0 w-32 h-24 rounded-xl bg-white border border-neutral-100 flex items-center justify-center p-4 hover:border-primary/30 hover:shadow-sm transition-all"
+                    >
+                      {brand.logo_path ? (
+                        <img 
+                          src={brand.logo_path.startsWith('http') ? brand.logo_path : supabase.storage.from('brand-logos').getPublicUrl(brand.logo_path).data.publicUrl}
+                          alt={brand.name}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-sm text-center text-neutral-600 font-medium">{brand.name}</span>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Desktop New Arrivals */}
+            {newProducts.length > 0 && (
+              <section className="py-8 px-6 bg-white rounded-xl mx-6 mb-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="font-semibold text-xl text-neutral-900">New Arrivals</h2>
+                  <Link to={`/store/${tenant.store_slug}/products`}>
+                    <Button variant="outline" size="sm" className="rounded-full">
+                      View All <ArrowRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </Link>
+                </div>
+                <div className="grid grid-cols-5 gap-4">
+                  {newProducts.slice(0, 10).map((product: any) => (
+                    <UnifiedProductCard
+                      key={product.id}
+                      product={product}
+                      storeSlug={tenant.store_slug}
+                      onAddToCart={handleAddToCart}
+                      isAdding={addingProduct === product.id}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Footer */}
+          {showFooter && (
+            <StoreFooter
+              storeName={tenant.store_name}
+              storeSlug={tenant.store_slug}
+              address={storeSettings?.store_address || tenant.address}
+              phone={storeSettings?.store_phone || tenant.phone}
+              email={storeSettings?.store_email}
+              logoPath={storeSettings?.logo_path}
+            />
+          )}
+        </main>
       )}
 
-      {showFooter && (
-        <StoreFooter
-          storeName={tenant.store_name}
-          storeSlug={tenant.store_slug}
-          address={storeSettings?.store_address || tenant.address}
-          phone={storeSettings?.store_phone || tenant.phone}
-          email={storeSettings?.store_email}
-          logoPath={storeSettings?.logo_path}
-        />
-      )}
+      {/* Mobile Bottom Navigation */}
+      <div className="lg:hidden">
+        <UnifiedBottomNav storeSlug={tenant.store_slug} cartCount={itemCount} />
+      </div>
     </div>
   );
 }
