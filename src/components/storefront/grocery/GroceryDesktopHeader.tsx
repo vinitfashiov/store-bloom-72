@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, ShoppingCart, MapPin, ChevronDown, User } from 'lucide-react';
+import { Search, ShoppingCart, MapPin, ChevronDown, User, Heart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { useGroceryLocation } from '@/contexts/GroceryLocationContext';
 
 interface GroceryDesktopHeaderProps {
   storeName: string;
@@ -14,6 +15,7 @@ interface GroceryDesktopHeaderProps {
   onSearchSubmit?: () => void;
   deliveryAddress?: string;
   cartCount?: number;
+  onLocationClick?: () => void;
 }
 
 export function GroceryDesktopHeader({
@@ -24,14 +26,20 @@ export function GroceryDesktopHeader({
   onSearchChange,
   onSearchSubmit,
   deliveryAddress,
-  cartCount = 0
+  cartCount = 0,
+  onLocationClick
 }: GroceryDesktopHeaderProps) {
   const [isFocused, setIsFocused] = useState(false);
+  const { pincode, deliveryArea, isLocationSet } = useGroceryLocation();
 
   const getLogoUrl = (path: string) => {
     if (path.startsWith('http')) return path;
     return supabase.storage.from('store-assets').getPublicUrl(path).data.publicUrl;
   };
+
+  const locationDisplay = isLocationSet 
+    ? deliveryArea?.name || pincode || 'Location set'
+    : 'Select location';
 
   return (
     <header className="bg-white sticky top-0 z-50 border-b border-neutral-100">
@@ -42,15 +50,21 @@ export function GroceryDesktopHeader({
             {logoPath ? (
               <img src={getLogoUrl(logoPath)} alt={storeName} className="h-10 w-auto object-contain" />
             ) : (
-              <span className="font-bold text-2xl text-yellow-500">{storeName}</span>
+              <span className="font-bold text-2xl text-green-600">{storeName}</span>
             )}
           </Link>
 
-          {/* Delivery Address */}
-          <button className="flex flex-col items-start shrink-0 hover:opacity-80 transition-opacity">
-            <span className="text-sm font-semibold text-neutral-900">Delivery in 8 minutes</span>
-            <div className="flex items-center gap-1 text-sm text-neutral-600">
-              <span className="truncate max-w-[180px]">{deliveryAddress || 'Select location'}</span>
+          {/* Delivery Address - Now clickable */}
+          <button 
+            onClick={onLocationClick}
+            className="flex flex-col items-start shrink-0 hover:opacity-80 transition-opacity cursor-pointer group"
+          >
+            <div className="flex items-center gap-1">
+              <MapPin className="w-4 h-4 text-green-600" />
+              <span className="text-sm font-semibold text-neutral-900">Delivery in 8 minutes</span>
+            </div>
+            <div className="flex items-center gap-1 text-sm text-neutral-600 group-hover:text-green-600 transition-colors">
+              <span className="truncate max-w-[180px]">{locationDisplay}</span>
               <ChevronDown className="w-4 h-4" />
             </div>
           </button>
@@ -72,11 +86,16 @@ export function GroceryDesktopHeader({
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <Link to={`/store/${storeSlug}/wishlist`}>
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 text-neutral-600 hover:text-green-600 hover:bg-green-50">
+                <Heart className="w-5 h-5" />
+              </Button>
+            </Link>
             <Link to={`/store/${storeSlug}/account`}>
-              <Button variant="ghost" className="text-neutral-700 hover:text-neutral-900 font-medium">
+              <Button variant="ghost" className="text-neutral-700 hover:text-green-600 hover:bg-green-50 font-medium">
                 <User className="w-4 h-4 mr-2" />
-                Login
+                Account
               </Button>
             </Link>
             <Link to={`/store/${storeSlug}/cart`}>
