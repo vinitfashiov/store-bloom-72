@@ -13,6 +13,12 @@ import { ProductSection } from '@/components/storefront/ProductSection';
 import { PromoStrip } from '@/components/storefront/PromoStrip';
 import { UnifiedBottomNav } from '@/components/storefront/unified/UnifiedBottomNav';
 import { UnifiedProductCard } from '@/components/storefront/unified/UnifiedProductCard';
+import { D2CHeader } from '@/components/storefront/d2c/D2CHeader';
+import { D2CHeroBanner } from '@/components/storefront/d2c/D2CHeroBanner';
+import { D2CProductSection } from '@/components/storefront/d2c/D2CProductSection';
+import { D2CCategorySection } from '@/components/storefront/d2c/D2CCategorySection';
+import { D2CFooter } from '@/components/storefront/d2c/D2CFooter';
+import { D2CProductCard } from '@/components/storefront/d2c/D2CProductCard';
 import { GroceryHeader } from '@/components/storefront/grocery/GroceryHeader';
 import { GroceryBottomNav } from '@/components/storefront/grocery/GroceryBottomNav';
 import { GroceryPromoBanner } from '@/components/storefront/grocery/GroceryPromoBanner';
@@ -392,16 +398,85 @@ export default function StoreHome() {
     );
   }
 
-  // E-commerce Store Layout - Now using unified grocery-style design
-  const handleEcommerceSearch = () => {
-    if (searchQuery.trim()) {
-      navigate(`/store/${tenant.store_slug}/products?q=${encodeURIComponent(searchQuery.trim())}`);
-    }
-  };
-
+  // E-commerce Store Layout - Premium D2C Brand Design
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col pb-20 lg:pb-0">
-      {/* Mobile Header - Grocery Style */}
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* D2C Header */}
+      {showHeader && (
+        <D2CHeader
+          storeName={tenant.store_name}
+          storeSlug={tenant.store_slug}
+          logoPath={storeSettings?.logo_path}
+          cartCount={itemCount}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          categories={categories}
+        />
+      )}
+
+      {/* Render builder content if available */}
+      {hasGrapesLayout ? (
+        <GrapesJSRenderer tenantId={tenant.id} />
+      ) : hasPublishedLayout ? (
+        <PageBuilderRenderer
+          tenantId={tenant.id}
+          storeSlug={tenant.store_slug}
+          onAddToCart={handleAddToCart}
+          addingProductId={addingProduct}
+        />
+      ) : (
+        <main className="flex-1">
+          <D2CHeroBanner
+            banners={banners}
+            storeSlug={tenant.store_slug}
+            storeName={tenant.store_name}
+            storeDescription={storeSettings?.website_description}
+          />
+
+          <D2CProductSection
+            title="NEW ARRIVALS"
+            subtitle="Fresh additions to elevate your everyday"
+            products={newProducts}
+            storeSlug={tenant.store_slug}
+            onAddToCart={handleAddToCart}
+            addingProductId={addingProduct}
+            viewAllLink={`/store/${tenant.store_slug}/products`}
+            columns={4}
+            variant="featured"
+          />
+
+          <D2CCategorySection
+            categories={categories}
+            storeSlug={tenant.store_slug}
+            variant="grid"
+          />
+
+          <D2CProductSection
+            title="BEST SELLERS"
+            subtitle="Our most-loved pieces, tried and trusted by our community"
+            products={products}
+            storeSlug={tenant.store_slug}
+            onAddToCart={handleAddToCart}
+            addingProductId={addingProduct}
+            viewAllLink={`/store/${tenant.store_slug}/products`}
+            columns={4}
+          />
+        </main>
+      )}
+
+      {showFooter && (
+        <D2CFooter
+          storeName={tenant.store_name}
+          storeSlug={tenant.store_slug}
+          logoPath={storeSettings?.logo_path}
+          address={storeSettings?.store_address || tenant.address}
+          phone={storeSettings?.store_phone || tenant.phone}
+          email={storeSettings?.store_email}
+        />
+      )}
+    </div>
+  );
+}
       {showHeader && (
         <div className="lg:hidden">
           <header className="bg-white sticky top-0 z-40">
