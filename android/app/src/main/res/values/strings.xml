@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">StoreBloom</string>
+    <string name="title_activity_main">StoreBloom</string>
+    <string name="package_name">com.storebloom.platform</string>
+    <string name="custom_url_scheme">com.storebloom.platform</string>
+</resources>
