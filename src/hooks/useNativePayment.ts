@@ -31,10 +31,9 @@ export function isNativeApp(): boolean {
  */
 export function isWebView(): boolean {
   const ua = navigator.userAgent.toLowerCase();
-  // Android WebView patterns - check for 'wv' flag or Android WebView signature
+  // Android WebView patterns
   const androidWebView = ua.includes('wv') || 
-    (ua.includes('android') && ua.includes('version/')) ||
-    (ua.includes('android') && !ua.includes('chrome'));
+    (ua.includes('android') && ua.includes('version/'));
   // iOS WebView patterns
   const iosWebView = /(iphone|ipod|ipad).*applewebkit(?!.*safari)/i.test(navigator.userAgent);
   
@@ -42,19 +41,10 @@ export function isWebView(): boolean {
 }
 
 /**
- * Check if we should use external payment flow
- * 
- * IMPORTANT: We now ALWAYS use external payment flow because:
- * 1. It works reliably in both web and WebView
- * 2. UPI apps launch properly in external browser
- * 3. The callback flow is more robust
- * 4. Same user experience across all platforms
- * 
- * Set to false only if you want to use SDK popup for desktop browsers
+ * Check if we should use external payment flow (recommended for native apps)
  */
 export function shouldUseExternalPayment(): boolean {
-  // Always use external payment for reliability
-  return true;
+  return isWebView() || isNativeApp();
 }
 
 /**
