@@ -39,16 +39,17 @@ import { GroceryLocationProvider, useGroceryLocation } from '@/contexts/GroceryL
 import { useCart } from '@/hooks/useCart';
 import { useCustomDomain } from '@/contexts/CustomDomainContext';
 import { supabase } from '@/integrations/supabase/client';
-import { 
-  useStoreData, 
-  useStoreSettings, 
-  useStoreBanners, 
-  useStoreCategories, 
+import {
+  useStoreData,
+  useStoreSettings,
+  useStoreBanners,
+  useStoreCategories,
   useStoreBrands,
   useStoreProducts
 } from '@/hooks/useOptimizedQueries';
 import { toast } from 'sonner';
 import { Store, Search, Heart, User, ShoppingCart, Package, ArrowRight } from 'lucide-react';
+import SEOHead from '@/components/shared/SEOHead';
 
 // Ultra-minimal loading - just a subtle indicator, content shell shows immediately
 const LoadingSkeleton = memo(() => (
@@ -116,9 +117,9 @@ function GroceryStoreContent({
 }) {
   const navigate = useNavigate();
   const [showLocationModal, setShowLocationModal] = useState(false);
-  
-  const { 
-    isLocationSet, 
+
+  const {
+    isLocationSet,
     isDeliverable,
     isInitialized,
     isLoading: locationLoading
@@ -153,7 +154,7 @@ function GroceryStoreContent({
   if (showNotDeliverable) {
     return (
       <>
-        <GroceryNotDeliverable 
+        <GroceryNotDeliverable
           storeName={tenant.store_name}
           onChangeLocation={handleLocationClick}
         />
@@ -223,12 +224,12 @@ function GroceryStoreContent({
             onAddToCart={handleAddToCart}
             addingProductId={addingProduct}
           />
-          <GroceryCategoryGrid 
-            categories={categories} 
+          <GroceryCategoryGrid
+            categories={categories}
             storeSlug={tenant.store_slug}
           />
-          <GroceryBrandScroll 
-            brands={brands} 
+          <GroceryBrandScroll
+            brands={brands}
             storeSlug={tenant.store_slug}
           />
           <GroceryProductSection
@@ -244,8 +245,8 @@ function GroceryStoreContent({
         <div className="hidden lg:block max-w-7xl mx-auto">
           <GroceryHeroBanner banners={banners} storeSlug={tenant.store_slug} />
           <GroceryPromoCards storeSlug={tenant.store_slug} />
-          <GroceryDesktopCategoryGrid 
-            categories={categories} 
+          <GroceryDesktopCategoryGrid
+            categories={categories}
             storeSlug={tenant.store_slug}
           />
           <GroceryDesktopProductSection
@@ -303,11 +304,11 @@ export default function StoreHome() {
   const { slug: urlSlug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const customDomain = useCustomDomain();
-  
-  const slug = customDomain.isCustomDomain && customDomain.tenant 
-    ? customDomain.tenant.store_slug 
+
+  const slug = customDomain.isCustomDomain && customDomain.tenant
+    ? customDomain.tenant.store_slug
     : urlSlug;
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [addingProduct, setAddingProduct] = useState<string | null>(null);
 
@@ -317,20 +318,20 @@ export default function StoreHome() {
   const { data: banners = [] } = useStoreBanners(tenant?.id);
   const { data: categories = [] } = useStoreCategories(tenant?.id, 12);
   const { data: brands = [] } = useStoreBrands(tenant?.id, 8);
-  
+
   // IMPORTANT: Call hooks unconditionally before any returns
   const { data: publishedLayout, isLoading: layoutLoading } = usePublishedLayout(tenant?.id);
   const { hasLayout: hasGrapesLayout, isLoading: grapesLoading } = useHasGrapesJSLayout(tenant?.id);
 
-  const { data: productsData } = useStoreProducts({ 
-    tenantId: tenant?.id, 
+  const { data: productsData } = useStoreProducts({
+    tenantId: tenant?.id,
     limit: 10,
     sortBy: 'created'
   });
   const products = productsData?.products || [];
 
-  const { data: newProductsData } = useStoreProducts({ 
-    tenantId: tenant?.id, 
+  const { data: newProductsData } = useStoreProducts({
+    tenantId: tenant?.id,
     limit: 10,
     sortBy: 'created'
   });
@@ -378,6 +379,12 @@ export default function StoreHome() {
   if (isGrocery) {
     return (
       <GroceryLocationProvider tenantId={tenant.id}>
+        <SEOHead
+          title={`${tenant.store_name} Online Store – Powered by Storekriti`}
+          description={storeSettings?.website_description || `Shop online from ${tenant.store_name}. Powered by Storekriti – India’s D2C ecommerce platform.`}
+          canonicalUrl={`https://storekriti.com/store/${tenant.store_slug}`}
+          type="website"
+        />
         <GroceryStoreContent
           tenant={tenant}
           storeSettings={storeSettings}
@@ -401,6 +408,12 @@ export default function StoreHome() {
   // E-commerce Store Layout - Premium D2C Brand Design
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      <SEOHead
+        title={`${tenant.store_name} Online Store – Powered by Storekriti`}
+        description={storeSettings?.website_description || `Shop online from ${tenant.store_name}. Powered by Storekriti – India’s D2C ecommerce platform.`}
+        canonicalUrl={`https://storekriti.com/store/${tenant.store_slug}`}
+        type="website"
+      />
       {/* D2C Header */}
       {showHeader && (
         <D2CHeader

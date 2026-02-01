@@ -3,13 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { StoreSwitcher } from './StoreSwitcher';
-import { 
-  Menu, 
+import {
+  Menu,
+  Bell,
   LogOut,
-  LayoutDashboard, 
-  Package, 
-  FolderTree, 
-  ShoppingBag, 
+  LayoutDashboard,
+  Package,
+  FolderTree,
+  ShoppingBag,
   Settings,
   Plug,
   Store,
@@ -108,23 +109,26 @@ export function AdminHeader({ storeName, storeSlug, businessType, tenantId, onSi
     ...settingsNavItems
   ];
 
-  const currentPage = navItems.find(item => 
-    location.pathname === item.href || 
+  const currentPage = navItems.find(item =>
+    location.pathname === item.href ||
     (item.href !== '/dashboard' && location.pathname.startsWith(item.href))
   )?.label || 'Dashboard';
 
   return (
-    <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-      <div className="flex items-center justify-between h-14 px-4">
-        <div className="flex items-center gap-3">
-          <StoreSwitcher currentTenantId={tenantId} storeName={storeName} onTenantChange={onTenantChange} />
+    <header className="sticky top-0 z-40 w-full border-b bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-14 items-center gap-4 px-4 justify-between">
+
+        {/* Left Side: Menu (Mobile) & Store Switcher */}
+        <div className="flex items-center gap-2 md:gap-4">
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild className="md:hidden">
-              <Button variant="ghost" size="icon" className="h-9 w-9">
-                <Menu className="w-5 h-5" />
+              <Button variant="ghost" size="icon" className="-ml-2">
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle Menu</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0 flex flex-col">
+              {/* Sheet content remains same */}
               <div className="flex items-center gap-3 p-4 border-b border-border">
                 <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0">
                   <Store className="w-5 h-5 text-primary-foreground" />
@@ -134,10 +138,10 @@ export function AdminHeader({ storeName, storeSlug, businessType, tenantId, onSi
                   <p className="text-xs text-muted-foreground">Admin Panel</p>
                 </div>
               </div>
-              
+
               <nav className="flex-1 overflow-y-auto p-3 space-y-1 scrollbar-hide">
                 {navItems.map((item) => {
-                  const isActive = location.pathname === item.href || 
+                  const isActive = location.pathname === item.href ||
                     (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
                   return (
                     <Link
@@ -158,8 +162,8 @@ export function AdminHeader({ storeName, storeSlug, businessType, tenantId, onSi
 
               <div className="p-3 border-t border-border space-y-1">
                 {storeSlug && (
-                  <Link 
-                    to={`/store/${storeSlug}`} 
+                  <Link
+                    to={`/store/${storeSlug}`}
                     target="_blank"
                     onClick={() => setIsOpen(false)}
                     className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -178,16 +182,36 @@ export function AdminHeader({ storeName, storeSlug, businessType, tenantId, onSi
               </div>
             </SheetContent>
           </Sheet>
-          
-          <h2 className="font-display font-semibold text-foreground text-sm md:text-base">
+
+          {/* Store Switcher - Visible on both, but styled differently if needed */}
+          <StoreSwitcher currentTenantId={tenantId} storeName={storeName} onTenantChange={onTenantChange} />
+
+          {/* Desktop Page Title */}
+          <h2 className="hidden md:block font-display font-semibold text-foreground">
             {currentPage}
           </h2>
         </div>
 
-        <Button variant="ghost" size="sm" onClick={onSignOut} className="hidden md:flex">
-          <LogOut className="w-4 h-4 mr-2" />
-          Logout
-        </Button>
+        {/* Right Side: Actions */}
+        <div className="flex items-center gap-2">
+          {/* Mobile Actions: Bell & Avatar */}
+          <div className="flex md:hidden items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+              <Bell className="h-5 w-5" />
+            </Button>
+            <Link to="/dashboard/account">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+                <User className="h-4 w-4 text-primary" />
+              </div>
+            </Link>
+          </div>
+
+          {/* Desktop Actions: Logout */}
+          <Button variant="ghost" size="sm" onClick={onSignOut} className="hidden md:flex">
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
+        </div>
       </div>
     </header>
   );

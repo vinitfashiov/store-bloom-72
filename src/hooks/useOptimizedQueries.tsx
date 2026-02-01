@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
 
 // Cache time constants (in milliseconds)
 const CACHE_TIME = {
@@ -29,14 +30,14 @@ export function useStoreData(slug: string | undefined) {
     queryKey: ['store', slug],
     queryFn: async () => {
       if (!slug) return null;
-      
+
       const { data, error } = await supabase
         .from('tenants')
         .select('id, store_name, store_slug, business_type, plan, trial_ends_at, is_active, address, phone')
         .eq('store_slug', slug)
         .eq('is_active', true)
         .maybeSingle();
-      
+
       if (error) throw error;
       return data;
     },
@@ -51,13 +52,13 @@ export function useStoreSettings(tenantId: string | undefined) {
     queryKey: ['store-settings', tenantId],
     queryFn: async () => {
       if (!tenantId) return null;
-      
+
       const { data, error } = await supabase
         .from('store_settings')
         .select('*')
         .eq('tenant_id', tenantId)
         .maybeSingle();
-      
+
       if (error) throw error;
       return data;
     },
@@ -72,14 +73,14 @@ export function useStoreBanners(tenantId: string | undefined) {
     queryKey: ['store-banners', tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
-      
+
       const { data, error } = await supabase
         .from('store_banners')
         .select('id, title, subtitle, image_path, cta_text, cta_url')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .order('position', { ascending: true });
-      
+
       if (error) throw error;
       return data || [];
     },
@@ -94,14 +95,14 @@ export function useStoreCategories(tenantId: string | undefined, limit = 12) {
     queryKey: ['store-categories', tenantId, limit],
     queryFn: async () => {
       if (!tenantId) return [];
-      
+
       const { data, error } = await supabase
         .from('categories')
         .select('id, name, slug')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .limit(limit);
-      
+
       if (error) throw error;
       return data || [];
     },
@@ -116,14 +117,14 @@ export function useStoreBrands(tenantId: string | undefined, limit = 8) {
     queryKey: ['store-brands', tenantId, limit],
     queryFn: async () => {
       if (!tenantId) return [];
-      
+
       const { data, error } = await supabase
         .from('brands')
         .select('id, name, slug, logo_path')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .limit(limit);
-      
+
       if (error) throw error;
       return data || [];
     },
@@ -156,38 +157,38 @@ export function useStoreProducts({
     queryKey: ['store-products', tenantId, categoryId, brandId, search, limit, offset, sortBy],
     queryFn: async () => {
       if (!tenantId) return { products: [], total: 0 };
-      
+
       let query = supabase
         .from('products')
         .select('id, name, slug, price, compare_at_price, images, stock_qty, has_variants, category:categories(name), brand:brands(name)', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .eq('is_active', true);
-      
+
       if (categoryId) query = query.eq('category_id', categoryId);
       if (brandId) query = query.eq('brand_id', brandId);
       if (search) query = query.ilike('name', `%${search}%`);
-      
+
       if (sortBy === 'price-asc') query = query.order('price', { ascending: true });
       else if (sortBy === 'price-desc') query = query.order('price', { ascending: false });
       else if (sortBy === 'name') query = query.order('name', { ascending: true });
       else query = query.order('created_at', { ascending: false });
-      
+
       query = query.range(offset, offset + limit - 1);
-      
+
       const { data, error, count } = await query;
       if (error) throw error;
-      
+
       // Fetch variant stocks in parallel for products with variants
       const productsWithVariants = (data || []).filter(p => p.has_variants);
       let variantStocks: Record<string, number> = {};
-      
+
       if (productsWithVariants.length > 0) {
         const { data: variants } = await supabase
           .from('product_variants')
           .select('product_id, stock_qty')
           .in('product_id', productsWithVariants.map(p => p.id))
           .eq('is_active', true);
-        
+
         if (variants) {
           variantStocks = variants.reduce((acc, v) => {
             acc[v.product_id] = (acc[v.product_id] || 0) + v.stock_qty;
@@ -195,13 +196,13 @@ export function useStoreProducts({
           }, {} as Record<string, number>);
         }
       }
-      
+
       const products = (data || []).map(p => ({
         ...p,
         images: Array.isArray(p.images) ? (p.images as string[]) : [],
         total_variant_stock: p.has_variants ? (variantStocks[p.id] || 0) : undefined
       }));
-      
+
       return { products, total: count || 0 };
     },
     enabled: !!tenantId,
@@ -215,7 +216,7 @@ export function useProductDetail(tenantId: string | undefined, productSlug: stri
     queryKey: ['product-detail', tenantId, productSlug],
     queryFn: async () => {
       if (!tenantId || !productSlug) return null;
-      
+
       const { data: product, error } = await supabase
         .from('products')
         .select(`
@@ -228,7 +229,7 @@ export function useProductDetail(tenantId: string | undefined, productSlug: stri
         .eq('slug', productSlug)
         .eq('is_active', true)
         .maybeSingle();
-      
+
       if (error) throw error;
       return product;
     },
@@ -255,20 +256,20 @@ export function useAdminOrders({ tenantId, status, paymentStatus, page, limit }:
     queryKey: ['admin-orders', tenantId, status, paymentStatus, page, limit],
     queryFn: async () => {
       const offset = (page - 1) * limit;
-      
+
       let query = supabase
         .from('orders')
         .select('*', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
-      
+
       if (status && status !== 'all') query = query.eq('status', status);
       if (paymentStatus && paymentStatus !== 'all') query = query.eq('payment_status', paymentStatus);
-      
+
       const { data, error, count } = await query;
       if (error) throw error;
-      
+
       return {
         orders: data || [],
         total: count || 0,
@@ -295,24 +296,24 @@ export function useAdminProducts({ tenantId, search, page, limit }: PaginatedPro
     queryKey: ['admin-products', tenantId, search, page, limit],
     queryFn: async () => {
       const offset = (page - 1) * limit;
-      
+
       let query = supabase
         .from('products')
         .select('id, name, slug, price, stock_qty, is_active, has_variants, images, category:categories(name), brand:brands(name)', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
-      
+
       if (search) query = query.ilike('name', `%${search}%`);
-      
+
       const { data, error, count } = await query;
       if (error) throw error;
-      
+
       const processed = (data || []).map(p => ({
         ...p,
         images: Array.isArray(p.images) ? p.images : []
       }));
-      
+
       return {
         products: processed,
         total: count || 0,
@@ -339,21 +340,21 @@ export function useAdminCustomers({ tenantId, search, page, limit }: PaginatedCu
     queryKey: ['admin-customers', tenantId, search, page, limit],
     queryFn: async () => {
       const offset = (page - 1) * limit;
-      
+
       let query = supabase
         .from('customers')
         .select('*', { count: 'exact' })
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
-      
+
       if (search) {
         query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
       }
-      
+
       const { data, error, count } = await query;
       if (error) throw error;
-      
+
       return {
         customers: data || [],
         total: count || 0,
@@ -373,11 +374,11 @@ export function useDashboardStats(tenantId: string | undefined) {
     queryKey: ['dashboard-stats', tenantId],
     queryFn: async () => {
       if (!tenantId) return null;
-      
+
       const { data, error } = await supabase.rpc('get_dashboard_stats', {
         p_tenant_id: tenantId
       });
-      
+
       if (error) throw error;
       return data?.[0] || null;
     },
@@ -387,20 +388,71 @@ export function useDashboardStats(tenantId: string | undefined) {
   });
 }
 
+export function useAnalyticsSummary(tenantId: string | undefined, dateRange: { from: Date; to: Date }) {
+  return useQuery({
+    queryKey: ['analytics-summary', tenantId, dateRange.from, dateRange.to],
+    queryFn: async () => {
+      if (!tenantId) return null;
+
+      const { data, error } = await supabase.rpc('get_analytics_summary', {
+        p_tenant_id: tenantId,
+        p_date_from: format(dateRange.from, 'yyyy-MM-dd'),
+        p_date_to: format(dateRange.to, 'yyyy-MM-dd')
+      });
+      if (error) throw error;
+      return data?.[0] || null;
+    },
+    enabled: !!tenantId,
+    staleTime: 60000,
+  });
+}
+
+export function useRecentOrders(tenantId: string | undefined, limit = 5) {
+  return useQuery({
+    queryKey: ['recent-orders', tenantId, limit],
+    queryFn: async () => {
+      if (!tenantId) return [];
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          total_amount,
+          status,
+          created_at,
+          payment_status,
+          customer:customer_id (
+            first_name,
+            last_name
+          )
+        `)
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+    staleTime: STALE_TIME.SHORT,
+  });
+}
+
 // ========================
 // MUTATION HOOKS
 // ========================
 
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
       const { error } = await supabase
         .from('orders')
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', orderId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -412,14 +464,14 @@ export function useUpdateOrderStatus() {
 
 export function useToggleProductStatus() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ productId, isActive }: { productId: string; isActive: boolean }) => {
       const { error } = await supabase
         .from('products')
         .update({ is_active: isActive })
         .eq('id', productId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {

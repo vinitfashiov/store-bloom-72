@@ -17,6 +17,8 @@ interface AdminLayoutProps {
   onUpgrade: () => void;
 }
 
+import { MobileBottomNav } from './mobile/MobileBottomNav';
+
 export function AdminLayout({
   children,
   storeName,
@@ -30,9 +32,13 @@ export function AdminLayout({
 }: AdminLayoutProps) {
   return (
     <div className="min-h-screen bg-background flex w-full">
-      <AdminSidebar storeSlug={storeSlug} storeName={storeName} businessType={businessType} />
+      {/* Sidebar - Desktop Only */}
+      <div className="hidden md:block">
+        <AdminSidebar storeSlug={storeSlug} storeName={storeName} businessType={businessType} />
+      </div>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
+        {/* Header (Global) */}
         <AdminHeader
           storeName={storeName}
           storeSlug={storeSlug}
@@ -65,6 +71,11 @@ export function AdminLayout({
         <main className="flex-1 p-3 md:p-6 overflow-auto">
           {children}
         </main>
+
+        {/* Bottom Nav - Mobile Only */}
+        <div className="md:hidden">
+          <MobileBottomNav storeSlug={storeSlug} />
+        </div>
       </div>
     </div>
   );

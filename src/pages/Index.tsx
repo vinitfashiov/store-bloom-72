@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PreloadLink } from "@/components/PreloadLink";
+import SEOHead from "@/components/shared/SEOHead";
 import {
   Store,
   ArrowRight,
@@ -19,24 +20,9 @@ import {
   Workflow,
   Plug,
   Lock,
-  Quote,
   ChevronRight,
+  Quote,
 } from "lucide-react";
-
-/**
- * ✅ Performance notes (no SEO change needed):
- * - No external images → ultra fast (all “illustrations” are CSS/SVG).
- * - content-visibility: auto on heavy sections (browser can skip rendering offscreen).
- * - Mobile-first layout (stacked by default).
- * - Keep arrays outside component to avoid re-allocations.
- */
-
-const NAV_LINKS = [
-  { href: "#features", label: "Features" },
-  { href: "#solutions", label: "Solutions" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#security", label: "Security" },
-];
 
 const LOGOS = ["ANTHROPIC", "coinbase", "Microsoft", "perplexity", "HubSpot", "x", "PayPal", "Lovable"];
 
@@ -114,43 +100,28 @@ const FAQ = [
 ];
 
 export default function Index() {
+  const schema = JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Storekriti",
+    "url": "https://www.storekriti.com",
+    "logo": "https://www.storekriti.com/logo.png",
+    "sameAs": [
+      "https://www.facebook.com/storekriti",
+      "https://www.instagram.com/storekriti",
+      "https://www.linkedin.com/company/storekriti"
+    ]
+  });
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* =========================
-          Top Nav (Mintlify-like)
-          ========================= */}
-      <nav className="sticky top-0 z-50 border-b border-border/50 bg-background/70 backdrop-blur">
-        <div className="container mx-auto px-4">
-          <div className="flex h-14 items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-                <Store className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="font-display font-bold tracking-tight">Storekriti</div>
-            </div>
+      <SEOHead
+        title="Storekriti – India’s D2C Ecommerce Store Builder"
+        description="Create your online store in minutes with Storekriti. Launch, manage and grow your ecommerce or grocery business with zero coding."
+        canonicalUrl="https://storekriti.com"
+        schema={schema}
+      />
 
-            <div className="hidden md:flex items-center gap-6 text-sm text-muted-foreground">
-              {NAV_LINKS.map((l) => (
-                <a key={l.href} href={l.href} className="hover:text-foreground transition">
-                  {l.label}
-                </a>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" className="hidden sm:inline-flex" asChild>
-                <PreloadLink to="/authentication">Log In</PreloadLink>
-              </Button>
-              <Button className="rounded-full" asChild>
-                <PreloadLink to="/authentication">
-                  Contact sales
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </PreloadLink>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
 
       {/* =========================
           HERO (match screenshot)

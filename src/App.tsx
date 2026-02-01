@@ -109,15 +109,46 @@ function AuthenticatedRoutes() {
   );
 }
 
+// Lazy loaded public pages (SEO)
+const PublicLayout = lazy(() => import("@/layouts/PublicLayout"));
+const Pricing = lazy(() => import("@/pages/public/Pricing"));
+const Features = lazy(() => import("@/pages/public/Features"));
+const StoreBuilder = lazy(() => import("@/pages/public/StoreBuilder"));
+const Themes = lazy(() => import("@/pages/public/Themes"));
+const Help = lazy(() => import("@/pages/public/Help"));
+const About = lazy(() => import("@/pages/public/About"));
+const Contact = lazy(() => import("@/pages/public/Contact"));
+const PrivacyPolicy = lazy(() => import("@/pages/public/PrivacyPolicy"));
+const Terms = lazy(() => import("@/pages/public/Terms"));
+const RefundPolicy = lazy(() => import("@/pages/public/RefundPolicy"));
+const ShippingPolicy = lazy(() => import("@/pages/public/ShippingPolicy"));
+
+// Public Routes Wrapper
+function PublicRoutes() {
+  return (
+    <Routes>
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<Index />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/features" element={<Features />} />
+        <Route path="/store-builder" element={<StoreBuilder />} />
+        <Route path="/themes" element={<Themes />} />
+        <Route path="/help" element={<Help />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/refund-policy" element={<RefundPolicy />} />
+        <Route path="/shipping-policy" element={<ShippingPolicy />} />
+      </Route>
+    </Routes>
+  );
+}
+
 // Main app content that conditionally renders based on custom domain
 function AppContent() {
   const { isCustomDomain, loading } = useCustomDomain();
   const location = useLocation();
-
-  // Landing page - ALWAYS render immediately, no waiting
-  if (location.pathname === '/') {
-    return <Index />;
-  }
 
   // Only show loading for custom domains (non-platform routes)
   if (loading && isCustomDomain) {
@@ -132,6 +163,27 @@ function AppContent() {
   // Store routes - separate from auth provider
   if (location.pathname.startsWith('/store/')) {
     return <StoreRoutes />;
+  }
+
+  // Check if it's a public route
+  const publicPaths = [
+    '/',
+    '/pricing',
+    '/features',
+    '/store-builder',
+    '/themes',
+    '/help',
+    '/about',
+    '/contact',
+    '/privacy-policy',
+    '/terms',
+    '/refund-policy',
+    '/shipping-policy'
+  ];
+
+  // Simple check for exact match or logic for specific public sub-routes if added later
+  if (publicPaths.includes(location.pathname)) {
+    return <PublicRoutes />;
   }
 
   // Authenticated platform routes
