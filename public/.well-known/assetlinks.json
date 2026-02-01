@@ -1,0 +1,14 @@
+[
+    {
+        "relation": [
+            "delegate_permission/common.handle_all_urls"
+        ],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.storekriti.twa",
+            "sha256_cert_fingerprints": [
+                "0C:5F:F3:08:3A:0B:30:BD:A4:CC:4A:E8:70:92:58:F8:7A:1C:D1:37:0D:C4:F5:15:2B:26:3D:90:54:72:08:86"
+            ]
+        }
+    }
+]
