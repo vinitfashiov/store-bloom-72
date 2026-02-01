@@ -1732,7 +1732,6 @@ export type Database = {
       payment_intents: {
         Row: {
           amount: number
-          callback_handled: boolean | null
           cart_id: string
           created_at: string
           currency: string
@@ -1747,7 +1746,6 @@ export type Database = {
         }
         Insert: {
           amount: number
-          callback_handled?: boolean | null
           cart_id: string
           created_at?: string
           currency?: string
@@ -1762,7 +1760,6 @@ export type Database = {
         }
         Update: {
           amount?: number
-          callback_handled?: boolean | null
           cart_id?: string
           created_at?: string
           currency?: string
