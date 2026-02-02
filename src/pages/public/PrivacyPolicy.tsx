@@ -33,7 +33,7 @@ export default function PrivacyPolicy() {
               <li>Mobile phone number (used for OTP-based login/signup)</li>
               <li>Name (if provided)</li>
               <li>Store details such as store name, products, pricing, and content</li>
-              <li>Payment-related metadata (transaction ID, status)</li>
+              <li>Payment-related metadata (transaction ID, status) Razorpay</li>
             </ul>
 
             <p>
