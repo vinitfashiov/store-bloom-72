@@ -24,7 +24,7 @@
 
 | Metric | Current | Target | Status |
 |--------|---------|--------|--------|
-| **FCP** (First Contentful Paint) | ~100-200ms | <1.8s | ✅ EXCELLENT |
+| **FCP** (First Contentfull Paint) | ~100-200ms | <1.8s | ✅ EXCELLENT |
 | **LCP** (Largest Contentful Paint) | ~300-500ms | <2.5s | ✅ EXCELLENT |
 | **FID** (First Input Delay) | ~50-100ms | <100ms | ✅ GOOD |
 | **CLS** (Cumulative Layout Shift) | ~0.05 | <0.1 | ✅ EXCELLENT |
