@@ -1,753 +1,630 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { PreloadLink } from "@/components/PreloadLink";
-import SEOHead from "@/components/shared/SEOHead";
-import {
-  Store,
-  ArrowRight,
-  Shield,
-  Zap,
-  Globe,
-  CreditCard,
-  Check,
-  Users,
-  BarChart3,
-  Sparkles,
-  Play,
-  ChevronDown,
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { 
+  ArrowRight, 
+  Play, 
+  ChevronDown, 
   ChevronUp,
   Star,
-  Quote,
-  Phone,
-  Mail,
-  MapPin,
-} from "lucide-react";
+  Sparkles,
+  Check,
+  Menu,
+  X,
+  Mail
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import SEOHead from '@/components/shared/SEOHead';
 
 // Brand logos for marquee
-const BRAND_LOGOS = [
-  { name: "YAYA", logo: "YAYA" },
-  { name: "AZONE", logo: "AZONE" },
-  { name: "Shalvie", logo: "shalvie" },
-  { name: "Oucch", logo: "oucch!" },
-  { name: "Plor", logo: "PLOR" },
-  { name: "Zyra", logo: "ZYRA" },
+const brandLogos = [
+  'Shopify', 'Razorpay', 'Shiprocket', 'Meta', 'Google', 'PayTM', 'PhonePe', 'Stripe'
 ];
 
 // Stats data
-const STATS = [
-  { value: "22", suffix: "%", label: "Enhanced Conversions", desc: "Storekriti boosts conversions and enhances the quality of each sale." },
-  { value: "40", suffix: "%", label: "Reduced RTO Rates", desc: "Using our platform, brands have improved Return-to-Origin rates significantly." },
-  { value: "48", suffix: "%", label: "Improved Prepaid Share", desc: "Our checkout increases prepaid orders by optimizing trust and speed." },
+const stats = [
+  { value: '22', suffix: '%', title: 'Enhanced Conversions', description: 'StoreKriti boosts conversions and enhances the quality of each sale.' },
+  { value: '40', suffix: '%', title: 'Reduced RTO Rates', description: 'Using our platform, brands have improved Return-to-Origin rates significantly.' },
+  { value: '48', suffix: '%', title: 'Improved Prepaid Share', description: 'Our checkout increases prepaid orders by optimizing trust and speed.' },
 ];
 
 // Features data
-const FEATURES = [
+const features = [
   {
-    title: "OTP Authentication & Pre-Filled Addresses",
-    desc: "Elevate your checkout experience with OTP authentication for security and instant address fill to speed up transactions. Combat RTO issues, and make every sale seamless.",
-    stat: "30% of e-commerce deliveries face Return To Origin (RTO) challenges.",
-    imagePosition: "right",
+    title: 'OTP Authentication & Pre-Filled Addresses',
+    description: 'Elevate your checkout experience with OTP authentication for security and instant address fill to speed up transactions. Combat RTO issues, and make every sale seamless.',
+    stat: '30% of e-commerce deliveries face Return To Origin (RTO) challenges.',
+    image: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop',
+    reverse: false,
   },
   {
-    title: "Dynamic Couponing & AI Upselling",
-    desc: "Maximize AOV with dynamic couponing and smart upselling. Offer personalized promotions and recommendations to enhance customer satisfaction.",
-    stat: "92% of online shoppers search for a coupon before completing purchase.",
-    imagePosition: "left",
+    title: 'Dynamic Couponing & AI Upselling',
+    description: 'Maximize AOV with dynamic couponing and smart upselling. Offer personalized promotions and recommendations to enhance customer satisfaction.',
+    stat: '92% of online shoppers search for a coupon before completing purchase.',
+    image: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&h=400&fit=crop',
+    reverse: true,
   },
   {
-    title: "Prepaid Incentives & COD Optimization",
-    desc: "Boost prepaid purchases and manage COD efficiently with discounts and surcharges, optimizing your revenue and operational flow in a mobile-friendly experience.",
-    stat: "E-commerce brands report COD share over 65%.",
-    imagePosition: "right",
-  },
-];
-
-// Integration partners
-const INTEGRATIONS = [
-  "Cashfree", "Razorpay", "Delhivery", "Snapdeal", "PhonePe", "Emsobuzz",
-  "Paytm", "Senri", "Meta", "Google Ads", "Google Analytics", "Paxyu", "Shiprocket"
-];
-
-// FAQ data
-const FAQ_DATA = [
-  {
-    q: "What does Storekriti cost?",
-    a: "Pricing depends on volume and features (OTP, COD rules, couponing, integrations). We offer flexible plans—schedule a demo for an exact quote.",
-  },
-  {
-    q: "Is Storekriti a payment gateway?",
-    a: "No. Storekriti is a complete ecommerce platform that works with your payment gateway(s). It improves conversion, prepaid share, and reduces RTO with smarter flows.",
-  },
-  {
-    q: "Do I incur Shopify transaction fees with Storekriti?",
-    a: "Storekriti is an independent platform, not a Shopify app. You have full control over your store without platform transaction fees.",
-  },
-  {
-    q: "Can I migrate from my existing platform?",
-    a: "Yes! We offer seamless migration support. Our team will help you transfer your products, customers, and orders with zero downtime.",
+    title: 'Prepaid Incentives & COD Optimization',
+    description: 'Boost prepaid purchases and manage COD efficiently with discounts and surcharges, optimizing your revenue and operational flow.',
+    stat: 'E-commerce brands report COD share over 65%.',
+    image: 'https://images.unsplash.com/photo-1556742111-a301076d9d18?w=600&h=400&fit=crop',
+    reverse: false,
   },
 ];
 
 // Testimonials
-const TESTIMONIALS = [
+const testimonials = [
   {
-    quote: "Storekriti has greatly improved our operations by reducing COD orders with Partial COD and boosting prepaid ones. They've enabled efficient scaling, and the team's support has made a strong business impact.",
-    name: "Faraz Khan",
-    role: "Co-Founder & MD of Plor",
-    featured: true,
+    quote: "StoreKriti has greatly improved our operations by reducing COD orders with Partial COD and boosting prepaid ones. They've enabled efficient scaling, and the team's support has made a strong business impact.",
+    author: 'Rahul Sharma',
+    role: 'Co-Founder & MD',
+    company: 'Fashion Brand',
+    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+    large: true,
   },
   {
-    quote: "Storekriti has transformed our checkout process with a smooth, customizable experience. Their support is exceptional.",
-    name: "Jatin Dugar",
-    role: "Founder & CEO of Lagorii",
+    quote: "StoreKriti has transformed our checkout process with a smooth, customizable experience. Their support is exceptional.",
+    author: 'Priya Patel',
+    role: 'Founder & CEO',
+    company: 'Home Decor Store',
+    image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
   },
   {
-    quote: "Storekriti promised a customized checkout and higher prepaid share—and delivered within four months. Support and expertise were key.",
-    name: "Abhishek Singh",
-    role: "Founder of Gifts Gallery",
+    quote: "StoreKriti promised a customized checkout and higher prepaid share—and delivered within four months. Support and expertise were key.",
+    author: 'Amit Kumar',
+    role: 'Founder',
+    company: 'Electronics Store',
+    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face',
   },
 ];
 
 // Reviews
-const REVIEWS = [
-  {
-    stars: 5,
-    quote: "The checkout is fast, clean, and conversion-friendly. COD optimizations saved us a ton of RTO cost.",
-    role: "Operations Lead",
-    company: "D2C Brand",
-  },
-  {
-    stars: 5,
-    quote: "OTP + Address autofill made checkout frictionless. Prepaid share jumped noticeably in weeks.",
-    role: "Growth Manager",
-    company: "Shopify Store",
-  },
-  {
-    stars: 5,
-    quote: "Support is fast and practical. Integrations and tracking helped our team move quickly.",
-    role: "Founder",
-    company: "D2C Commerce",
-  },
+const reviews = [
+  { text: "The checkout is fast, clean, and conversion-friendly. COD optimizations saved us a ton of RTO cost.", role: 'Operations Lead', company: 'D2C Brand' },
+  { text: "OTP + Address autofill made checkout frictionless. Prepaid share jumped noticeably in weeks.", role: 'Growth Manager', company: 'Online Store' },
+  { text: "Support is fast and practical. Integrations and tracking helped our team move quickly.", role: 'Founder', company: 'D2C Commerce' },
+];
+
+// FAQ data
+const faqs = [
+  { q: 'What does StoreKriti cost?', a: 'Pricing depends on volume and features. We offer flexible plans—schedule a demo for an exact quote.' },
+  { q: 'Is StoreKriti a payment gateway?', a: 'No. StoreKriti is a complete e-commerce platform that works with your payment gateway(s). It improves conversion, prepaid share, and reduces RTO with smarter flows.' },
+  { q: 'Do I need technical skills to use StoreKriti?', a: 'Not at all! StoreKriti is designed for non-technical users. Our intuitive interface lets you build and manage your store without any coding.' },
+];
+
+// Integration badges
+const integrations = [
+  'Shopify', 'Razorpay', 'Shiprocket', 'Meta', 'Google', 'Webhooks', 'SMS/OTP', 'UPI', 'COD Rules', 'Coupons', 'Analytics', 'CRM'
 ];
 
 export default function Index() {
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-
-  const schema = JSON.stringify({
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "Storekriti",
-    "url": "https://www.storekriti.com",
-    "logo": "https://www.storekriti.com/logo.png",
-    "sameAs": [
-      "https://www.facebook.com/storekriti",
-      "https://www.instagram.com/storekriti",
-      "https://www.linkedin.com/company/storekriti"
-    ]
-  });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   return (
-    <div className="min-h-screen bg-white text-foreground font-sans">
-      <SEOHead
-        title="Storekriti – India's D2C Ecommerce Store Builder"
-        description="Create your online store in minutes with Storekriti. Launch, manage and grow your ecommerce or grocery business with zero coding."
-        canonicalUrl="https://storekriti.com"
-        schema={schema}
+    <>
+      <SEOHead 
+        title="StoreKriti — Checkout That Converts"
+        description="Skyrocket your sales with the innovative checkout suite that provides a faster, smoother, and wiser checkout experience."
       />
-
-      {/* ========== HEADER ========== */}
-      <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
-              <Store className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">Storekriti</span>
-          </Link>
-
-          <nav className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Features</a>
-            <a href="#integrations" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Integrations</a>
-            <a href="#testimonials" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Testimonials</a>
-            <a href="#faq" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">FAQ</a>
-            <PreloadLink to="/contact" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">Contact Us</PreloadLink>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" className="hidden sm:inline-flex text-sm" asChild>
-              <PreloadLink to="/authentication">Log in</PreloadLink>
-            </Button>
-            <Button className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25" asChild>
-              <PreloadLink to="/authentication">
-                Schedule a demo
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </PreloadLink>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* ========== HERO SECTION ========== */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-white pt-16 pb-20 lg:pt-24 lg:pb-32">
-        {/* Background decorations */}
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-100/50 rounded-full blur-3xl" />
-        <div className="absolute top-20 right-1/4 w-80 h-80 bg-indigo-100/50 rounded-full blur-3xl" />
-        
-        <div className="container mx-auto px-4 relative">
-          <div className="text-center max-w-4xl mx-auto">
-            {/* Badge */}
-            <Badge className="mb-6 rounded-full bg-blue-50 text-blue-700 border-blue-200 px-4 py-1.5 text-sm font-medium">
-              <Sparkles className="w-4 h-4 mr-2" />
-              🚀 Presenting Storekriti
-            </Badge>
-
-            {/* Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 leading-tight">
-              Simple{" "}
-              <span className="relative inline-flex items-center">
-                <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">1 click</span>
-                <span className="ml-2 inline-flex items-center justify-center w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg">
-                  <Zap className="w-5 h-5 text-white" />
-                </span>
-              </span>
-              <br />
-              <span className="text-gray-900">Checkout That Converts</span>
-            </h1>
-
-            {/* Subtitle */}
-            <p className="mt-6 text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-              Skyrocket your sales with the innovative checkout suite that provides a faster, smoother, and wiser checkout experience.
-            </p>
-
-            {/* CTA Buttons */}
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 h-12 text-base shadow-xl shadow-blue-500/25" asChild>
-                <PreloadLink to="/authentication">
-                  Talk to us
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </PreloadLink>
-              </Button>
-              <Button size="lg" variant="outline" className="rounded-full border-gray-300 text-gray-700 hover:bg-gray-50 px-8 h-12 text-base">
-                <Play className="w-5 h-5 mr-2 text-blue-600" />
-                How it works
-              </Button>
-            </div>
-          </div>
-
-          {/* Hero Image/Video Mockup */}
-          <div className="mt-16 relative max-w-5xl mx-auto">
-            <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-gray-900/10 border border-gray-200 bg-white">
-              {/* Browser chrome */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <div className="w-3 h-3 rounded-full bg-green-400" />
-                </div>
-                <div className="flex-1 flex justify-center">
-                  <div className="px-4 py-1 rounded-full bg-white border border-gray-200 text-xs text-gray-500">
-                    app.storekriti.com
-                  </div>
-                </div>
-              </div>
-              
-              {/* Dashboard mockup content */}
-              <div className="aspect-video bg-gradient-to-br from-slate-50 to-white p-6">
-                <div className="grid grid-cols-12 gap-4 h-full">
-                  {/* Sidebar */}
-                  <div className="col-span-3 bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-                        <Store className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <div className="font-semibold text-sm">Storekriti</div>
-                        <div className="text-xs text-gray-400">Dashboard</div>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {["Dashboard", "Orders", "Products", "Customers", "Analytics"].map((item, i) => (
-                        <div key={item} className={`px-3 py-2 rounded-lg text-sm ${i === 0 ? "bg-blue-50 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}>
-                          {item}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Main content */}
-                  <div className="col-span-9 space-y-4">
-                    {/* Stats row */}
-                    <div className="grid grid-cols-4 gap-4">
-                      {[
-                        { label: "Total Sales", value: "₹12.4L", change: "+12%" },
-                        { label: "Orders", value: "1,234", change: "+8%" },
-                        { label: "Conversion", value: "4.2%", change: "+0.5%" },
-                        { label: "Customers", value: "892", change: "+15%" },
-                      ].map((stat) => (
-                        <div key={stat.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
-                          <div className="text-xs text-gray-500">{stat.label}</div>
-                          <div className="text-xl font-bold text-gray-900 mt-1">{stat.value}</div>
-                          <div className="text-xs text-green-600 mt-1">{stat.change}</div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {/* Chart area */}
-                    <div className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm flex-1">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="font-semibold text-gray-900">Revenue Overview</div>
-                        <div className="text-xs text-gray-500">Last 30 days</div>
-                      </div>
-                      <div className="h-32 flex items-end justify-between gap-2">
-                        {[40, 65, 45, 80, 55, 70, 85, 60, 75, 90, 70, 95].map((h, i) => (
-                          <div key={i} className="flex-1 bg-gradient-to-t from-blue-500 to-indigo-400 rounded-t-sm" style={{ height: `${h}%` }} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Play button overlay */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <button className="w-20 h-20 rounded-full bg-white/90 shadow-xl flex items-center justify-center pointer-events-auto hover:scale-110 transition-transform">
-                <Play className="w-8 h-8 text-blue-600 ml-1" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========== BRAND LOGOS SECTION ========== */}
-      <section className="py-16 bg-white border-y border-gray-100">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-10">
-            <Badge className="mb-4 rounded-full bg-gray-100 text-gray-700 border-gray-200 px-4 py-1">
-              Partnered with the Best
-            </Badge>
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              Trusted By Industry Leading Brands
-            </h2>
-            <p className="mt-3 text-gray-600 max-w-xl mx-auto">
-              Storekriti powers the checkout for industry leaders, offering seamless checkout and unmatched reliability.
-            </p>
-          </div>
-
-          {/* Logo marquee */}
-          <div className="overflow-hidden">
-            <div className="flex items-center gap-16 animate-marquee whitespace-nowrap">
-              {[...BRAND_LOGOS, ...BRAND_LOGOS].map((brand, i) => (
-                <div key={i} className="text-2xl font-bold text-gray-300 hover:text-gray-500 transition-colors cursor-default">
-                  {brand.logo}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========== STATS SECTION ========== */}
-      <section className="py-20 bg-gradient-to-b from-white to-slate-50">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <Badge className="mb-4 rounded-full bg-blue-50 text-blue-700 border-blue-200 px-4 py-1">
-              Success Snapshots
-            </Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
-              How Storekriti has revolutionised D2C checkouts
-            </h2>
-            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
-              Streamlined checkouts, elevated conversions. Transforming clicks into customers, effortlessly.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {STATS.map((stat, i) => (
-              <div key={i} className="text-center p-8 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-lg transition-shadow">
-                <div className="inline-flex items-baseline">
-                  <span className="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    {stat.value}
-                  </span>
-                  <span className="text-3xl font-bold text-blue-600">{stat.suffix}</span>
-                </div>
-                <h3 className="mt-4 text-lg font-semibold text-gray-900">{stat.label}</h3>
-                <p className="mt-2 text-sm text-gray-600">{stat.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ========== FEATURES SECTION ========== */}
-      <section id="features" className="py-20 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <Badge className="mb-4 rounded-full bg-indigo-50 text-indigo-700 border-indigo-200 px-4 py-1">
-              Feature Highlights
-            </Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
-              Advanced Features for Enhanced Checkout Performance
-            </h2>
-            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
-              Unlock lightning-fast sales with one-tap authentication and instant address fill, crafted for peak performance.
-            </p>
-          </div>
-
-          <div className="space-y-24">
-            {FEATURES.map((feature, i) => (
-              <div key={i} className={`grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${feature.imagePosition === "left" ? "lg:flex-row-reverse" : ""}`}>
-                {/* Content */}
-                <div className={feature.imagePosition === "left" ? "lg:order-2" : ""}>
-                  <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
-                    {feature.title}
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed mb-6">
-                    {feature.desc}
-                  </p>
-                  <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 border border-blue-100">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                      <BarChart3 className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <p className="text-sm text-blue-800">{feature.stat}</p>
-                  </div>
-                  <Button className="mt-6 rounded-full" variant="outline" asChild>
-                    <PreloadLink to="/features">
-                      Learn More
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </PreloadLink>
-                  </Button>
-                </div>
-
-                {/* Image placeholder */}
-                <div className={feature.imagePosition === "left" ? "lg:order-1" : ""}>
-                  <div className="aspect-[4/3] rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 border border-gray-200 flex items-center justify-center overflow-hidden shadow-lg">
-                    <div className="text-center p-8">
-                      <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center mb-4">
-                        {i === 0 ? <Shield className="w-10 h-10 text-white" /> : 
-                         i === 1 ? <Sparkles className="w-10 h-10 text-white" /> : 
-                         <CreditCard className="w-10 h-10 text-white" />}
-                      </div>
-                      <div className="text-sm text-gray-500">Feature Preview</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* CTA Button */}
-          <div className="text-center mt-16">
-            <Button size="lg" className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 shadow-xl shadow-blue-500/25" asChild>
-              <PreloadLink to="/authentication">
-                Skyrocket Your Checkout
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </PreloadLink>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* ========== INTEGRATIONS SECTION ========== */}
-      <section id="integrations" className="py-20 bg-slate-50">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <Badge className="mb-4 rounded-full bg-green-50 text-green-700 border-green-200 px-4 py-1">
-              Integration
-            </Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
-              Seamless Sync with Your Favorite Tools
-            </h2>
-            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
-              Maximize efficiency with Storekriti's seamless integrations. Connect your favorite tools, streamline your workflow, and amplify your success.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-4 max-w-4xl mx-auto">
-            {INTEGRATIONS.map((integration, i) => (
-              <div key={i} className="px-6 py-3 rounded-full bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow text-sm font-medium text-gray-700 hover:text-blue-600 cursor-default">
-                {integration}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ========== TESTIMONIALS SECTION ========== */}
-      <section id="testimonials" className="py-20 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <Badge className="mb-4 rounded-full bg-purple-50 text-purple-700 border-purple-200 px-4 py-1">
-              Voices of Trust
-            </Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
-              Client Success Stories
-            </h2>
-            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
-              Real feedback from our partners — see how Storekriti has transformed their businesses and checkout experiences.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* Featured testimonial */}
-            <div className="lg:col-span-2 lg:row-span-2 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 p-8 text-white relative overflow-hidden">
-              <Quote className="absolute top-6 right-6 w-12 h-12 text-white/20" />
-              <div className="relative z-10">
-                <p className="text-lg sm:text-xl leading-relaxed mb-8">
-                  "{TESTIMONIALS[0].quote}"
-                </p>
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center text-xl font-bold">
-                    {TESTIMONIALS[0].name.charAt(0)}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-lg">{TESTIMONIALS[0].name}</div>
-                    <div className="text-white/80">{TESTIMONIALS[0].role}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Other testimonials */}
-            {TESTIMONIALS.slice(1).map((testimonial, i) => (
-              <div key={i} className="rounded-2xl bg-white border border-gray-200 p-6 shadow-sm hover:shadow-lg transition-shadow">
-                <p className="text-gray-600 leading-relaxed mb-6">
-                  "{testimonial.quote}"
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center text-white font-semibold">
-                    {testimonial.name.charAt(0)}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">{testimonial.name}</div>
-                    <div className="text-sm text-gray-500">{testimonial.role}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-center mt-12">
-            <Button className="rounded-full" variant="outline" asChild>
-              <PreloadLink to="/authentication">
-                Simplify Checkout
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </PreloadLink>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* ========== REVIEWS SECTION ========== */}
-      <section className="py-20 bg-slate-50">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <Badge className="mb-4 rounded-full bg-amber-50 text-amber-700 border-amber-200 px-4 py-1">
-              Voices of Experience
-            </Badge>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
-              What Our Clients Say
-            </h2>
-            <p className="mt-4 text-gray-600 max-w-2xl mx-auto">
-              Hear directly from our customers about their experience partnering with Storekriti and the results we've delivered.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {REVIEWS.map((review, i) => (
-              <div key={i} className="rounded-2xl bg-white border border-gray-200 p-6 shadow-sm">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(review.stars)].map((_, j) => (
-                    <Star key={j} className="w-5 h-5 fill-amber-400 text-amber-400" />
-                  ))}
-                </div>
-                <p className="text-gray-600 leading-relaxed mb-6">"{review.quote}"</p>
-                <div>
-                  <div className="font-semibold text-gray-900">{review.role}</div>
-                  <div className="text-sm text-gray-500">{review.company}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="text-center mt-10">
-            <Button className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25" asChild>
-              <PreloadLink to="/authentication">
-                Boost Revenue
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </PreloadLink>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* ========== FAQ SECTION ========== */}
-      <section id="faq" className="py-20 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-6xl mx-auto">
-            {/* Left side */}
-            <div>
-              <Badge className="mb-4 rounded-full bg-cyan-50 text-cyan-700 border-cyan-200 px-4 py-1">
-                Support
-              </Badge>
-              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
-                FAQ: Your Questions, Answered
-              </h2>
-              <p className="mt-4 text-gray-600">
-                Find quick answers to common queries and get clarity on how Storekriti can work for you.
-              </p>
-              <Button className="mt-6 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25" asChild>
-                <PreloadLink to="/help">Get Answers</PreloadLink>
-              </Button>
-            </div>
-
-            {/* Right side - Accordion */}
-            <div className="space-y-4">
-              {FAQ_DATA.map((faq, i) => (
-                <div key={i} className="rounded-xl border border-gray-200 overflow-hidden">
-                  <button
-                    className="w-full px-6 py-4 flex items-center justify-between text-left bg-white hover:bg-gray-50 transition-colors"
-                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  >
-                    <span className="font-medium text-gray-900">{faq.q}</span>
-                    {openFaq === i ? (
-                      <ChevronUp className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-500 flex-shrink-0" />
-                    )}
-                  </button>
-                  {openFaq === i && (
-                    <div className="px-6 pb-4 text-gray-600 bg-gray-50">
-                      {faq.a}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========== FINAL CTA SECTION ========== */}
-      <section className="py-20 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 relative overflow-hidden">
-        {/* Background decorations */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
-        
-        <div className="container mx-auto px-4 relative">
-          <div className="text-center max-w-3xl mx-auto">
-            <div className="flex items-center justify-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-white" />
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-                <Store className="w-6 h-6 text-white" />
-              </div>
-            </div>
-
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
-              Redefine the Checkout
-            </h2>
-            <p className="text-lg text-white/80 mb-8 max-w-xl mx-auto">
-              Tap into the power of Storekriti and let's transform your customer's journey together. It's time to lead the charge in D2C commerce.
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button size="lg" className="rounded-full bg-white text-blue-700 hover:bg-white/90 px-8 h-12 text-base shadow-xl" asChild>
-                <PreloadLink to="/authentication">
-                  Get Started
-                  <ArrowRight className="w-5 h-5 ml-2" />
-                </PreloadLink>
-              </Button>
-              <Button size="lg" variant="outline" className="rounded-full border-white/30 text-white hover:bg-white/10 px-8 h-12 text-base" asChild>
-                <PreloadLink to="/features">Explore Features</PreloadLink>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ========== FOOTER ========== */}
-      <footer className="bg-gray-900 text-gray-300 py-16">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
-            {/* Brand */}
-            <div className="lg:col-span-1">
-              <Link to="/" className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-                  <Store className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">Storekriti</span>
-              </Link>
-              <p className="text-sm text-gray-400 mb-6">
-                Streamlining your checkout experience with cutting-edge, one-click solution that converts.
-              </p>
-              <div className="flex gap-4">
-                <a href="#" className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors">
-                  <Globe className="w-5 h-5" />
-                </a>
-                <a href="#" className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors">
-                  <Users className="w-5 h-5" />
-                </a>
-                <a href="#" className="w-10 h-10 rounded-full bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors">
-                  <Mail className="w-5 h-5" />
-                </a>
-              </div>
-            </div>
-
-            {/* Menu */}
-            <div>
-              <h4 className="text-white font-semibold mb-4">Menu</h4>
-              <ul className="space-y-3">
-                <li><Link to="/" className="text-gray-400 hover:text-white transition-colors">Home</Link></li>
-                <li><Link to="/help" className="text-gray-400 hover:text-white transition-colors">FAQs</Link></li>
-                <li><Link to="/features" className="text-gray-400 hover:text-white transition-colors">Features</Link></li>
-              </ul>
-            </div>
-
-            {/* Company */}
-            <div>
-              <h4 className="text-white font-semibold mb-4">Company</h4>
-              <ul className="space-y-3">
-                <li><Link to="/about" className="text-gray-400 hover:text-white transition-colors">About us</Link></li>
-                <li><Link to="/contact" className="text-gray-400 hover:text-white transition-colors">Contact us</Link></li>
-                <li><Link to="/privacy-policy" className="text-gray-400 hover:text-white transition-colors">Privacy Policy</Link></li>
-                <li><Link to="/terms" className="text-gray-400 hover:text-white transition-colors">Terms & Conditions</Link></li>
-              </ul>
-            </div>
-
-            {/* Contact */}
-            <div>
-              <h4 className="text-white font-semibold mb-4">Contact us</h4>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
-                  <Mail className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Email</div>
-                  <div className="text-sm">hello@storekriti.com</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-800 mt-12 pt-8 text-center text-sm text-gray-500">
-            Copyright © 2025 Storekriti | All Rights Reserved
-          </div>
-        </div>
-      </footer>
-
-      {/* Marquee animation style */}
+      
       <style>{`
         @keyframes marquee {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
         .animate-marquee {
-          animation: marquee 20s linear infinite;
+          animation: marquee 25s linear infinite;
+        }
+        .animate-marquee:hover {
+          animation-play-state: paused;
         }
       `}</style>
-    </div>
+
+      <div className="min-h-screen bg-white" style={{ fontFamily: "'Inter', 'Manrope', ui-sans-serif, system-ui, sans-serif" }}>
+        {/* Navigation */}
+        <nav className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              {/* Logo */}
+              <Link to="/" className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">S</span>
+                </div>
+                <span className="text-xl font-bold text-gray-900">StoreKriti</span>
+              </Link>
+
+              {/* Desktop Nav */}
+              <div className="hidden md:flex items-center gap-8">
+                <Link to="/" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">Home</Link>
+                <Link to="/features" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">Features</Link>
+                <Link to="/pricing" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">Pricing</Link>
+                <Link to="/about" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">About Us</Link>
+                <Link to="/contact" className="text-gray-600 hover:text-gray-900 font-medium text-sm transition-colors">Contact Us</Link>
+              </div>
+
+              {/* CTA */}
+              <div className="hidden md:flex items-center gap-4">
+                <Link to="/auth">
+                  <Button className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-6 text-sm font-medium shadow-lg shadow-violet-200/50">
+                    Schedule a demo
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Mobile menu button */}
+              <button 
+                className="md:hidden p-2"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              >
+                {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden bg-white border-t border-gray-100 py-4 px-4">
+              <div className="flex flex-col gap-4">
+                <Link to="/" className="text-gray-600 hover:text-gray-900 font-medium">Home</Link>
+                <Link to="/features" className="text-gray-600 hover:text-gray-900 font-medium">Features</Link>
+                <Link to="/pricing" className="text-gray-600 hover:text-gray-900 font-medium">Pricing</Link>
+                <Link to="/about" className="text-gray-600 hover:text-gray-900 font-medium">About Us</Link>
+                <Link to="/contact" className="text-gray-600 hover:text-gray-900 font-medium">Contact Us</Link>
+                <Link to="/auth">
+                  <Button className="bg-violet-600 hover:bg-violet-700 text-white rounded-full w-full">
+                    Schedule a demo
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+        </nav>
+
+        {/* Hero Section */}
+        <section className="pt-24 pb-16 md:pt-32 md:pb-24 bg-gradient-to-b from-violet-50/70 via-white to-white overflow-hidden relative">
+          {/* Decorative elements */}
+          <div className="absolute top-20 left-10 w-20 h-20 bg-violet-200/30 rounded-full blur-2xl" />
+          <div className="absolute top-40 right-20 w-32 h-32 bg-purple-200/30 rounded-full blur-3xl" />
+          
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+            <div className="text-center max-w-4xl mx-auto">
+              {/* Badge */}
+              <div className="inline-flex items-center gap-2 bg-violet-100/80 text-violet-700 rounded-full px-4 py-2 text-sm font-medium mb-6 backdrop-blur-sm">
+                <span>🚀</span>
+                <span>Presenting StoreKriti</span>
+              </div>
+
+              {/* Headline */}
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6 tracking-tight">
+                Simple{' '}
+                <span className="relative inline-flex items-center">
+                  <span className="bg-gradient-to-r from-violet-600 via-purple-600 to-violet-600 bg-clip-text text-transparent">
+                    1 click
+                  </span>
+                  <Sparkles className="w-5 h-5 md:w-6 md:h-6 text-violet-500 ml-1 -mt-6 absolute -right-6 -top-1" />
+                </span>
+                <br />
+                Checkout That Converts
+              </h1>
+
+              {/* Subheadline */}
+              <p className="text-lg md:text-xl text-gray-500 mb-8 max-w-2xl mx-auto leading-relaxed font-normal">
+                Skyrocket your sales with the innovative checkout suite that provides a faster, smoother, and wiser checkout experience.
+              </p>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
+                <Link to="/auth">
+                  <Button size="lg" className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-8 h-12 text-base font-semibold shadow-xl shadow-violet-300/40 transition-all hover:shadow-violet-300/60 hover:-translate-y-0.5">
+                    Talk to us
+                    <ArrowRight className="w-5 h-5 ml-2" />
+                  </Button>
+                </Link>
+                <Button size="lg" variant="outline" className="rounded-full px-8 h-12 text-base font-semibold border-gray-300 hover:bg-gray-50 text-gray-700">
+                  <Play className="w-4 h-4 mr-2" />
+                  How it works
+                </Button>
+              </div>
+
+              {/* Dashboard Preview */}
+              <div className="relative max-w-4xl mx-auto">
+                <div className="bg-white rounded-2xl shadow-2xl shadow-gray-200/60 border border-gray-200/80 overflow-hidden">
+                  <img 
+                    src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&h=600&fit=crop"
+                    alt="Dashboard Preview"
+                    className="w-full h-auto"
+                  />
+                  {/* Play button overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/5">
+                    <button className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform group">
+                      <Play className="w-6 h-6 md:w-8 md:h-8 text-violet-600 ml-1 group-hover:text-violet-700" fill="currentColor" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Brand Marquee */}
+        <section className="py-16 bg-slate-50 border-y border-gray-100">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-10">
+              <span className="text-violet-600 font-semibold text-xs uppercase tracking-widest">Partnered with the Best</span>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mt-3">Trusted By Industry Leading Brands</h2>
+              <p className="text-gray-500 mt-3 max-w-xl mx-auto text-sm">
+                StoreKriti powers the checkout for industry leaders, offering seamless checkout and unmatched reliability.
+              </p>
+            </div>
+
+            <div className="overflow-hidden">
+              <div className="animate-marquee flex gap-16 whitespace-nowrap">
+                {[...brandLogos, ...brandLogos].map((brand, i) => (
+                  <div key={i} className="flex-shrink-0 h-12 flex items-center justify-center px-6">
+                    <span className="text-xl font-bold text-gray-300 hover:text-gray-400 transition-colors">{brand}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Stats Section */}
+        <section className="py-20 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-14">
+              <span className="text-violet-600 font-semibold text-xs uppercase tracking-widest">Success Snapshots</span>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">How StoreKriti has revolutionised D2C checkouts</h2>
+              <p className="text-gray-500 mt-3 max-w-xl mx-auto text-sm">
+                Streamlined checkouts, elevated conversions. Transforming clicks into customers, effortlessly.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              {stats.map((stat, i) => (
+                <div key={i} className="bg-gradient-to-br from-slate-50 to-white rounded-2xl p-8 border border-gray-100 text-center hover:shadow-xl hover:shadow-gray-100/50 transition-all hover:-translate-y-1">
+                  <div className="text-5xl md:text-6xl font-extrabold text-violet-600 mb-2">
+                    {stat.value}<span className="text-3xl">{stat.suffix}</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-3">{stat.title}</h3>
+                  <p className="text-gray-500 text-sm leading-relaxed">{stat.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Features Section */}
+        <section className="py-20 bg-slate-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-14">
+              <span className="text-violet-600 font-semibold text-xs uppercase tracking-widest">Feature Highlights</span>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">Advanced Features for Enhanced Checkout Performance</h2>
+              <p className="text-gray-500 mt-3 max-w-xl mx-auto text-sm">
+                Unlock lightning-fast sales with one-tap authentication and instant address fill, crafted for peak performance.
+              </p>
+            </div>
+
+            <div className="space-y-24">
+              {features.map((feature, i) => (
+                <div 
+                  key={i} 
+                  className={`flex flex-col ${feature.reverse ? 'md:flex-row-reverse' : 'md:flex-row'} items-center gap-12 md:gap-16`}
+                >
+                  {/* Image */}
+                  <div className="flex-1 w-full">
+                    <div className="rounded-2xl overflow-hidden shadow-2xl shadow-gray-200/50 border border-gray-100">
+                      <img 
+                        src={feature.image} 
+                        alt={feature.title}
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1">
+                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">{feature.title}</h3>
+                    <p className="text-gray-500 mb-6 leading-relaxed">{feature.description}</p>
+                    
+                    <div className="flex items-start gap-3 bg-violet-50 rounded-xl p-4 mb-6 border border-violet-100">
+                      <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="w-4 h-4 text-violet-600" />
+                      </div>
+                      <p className="text-gray-600 text-sm">{feature.stat}</p>
+                    </div>
+
+                    <Button variant="link" className="text-violet-600 hover:text-violet-700 p-0 font-semibold text-sm">
+                      Learn More <ArrowRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-center mt-16">
+              <Link to="/auth">
+                <Button size="lg" className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-8 h-12 font-semibold shadow-xl shadow-violet-300/40">
+                  Skyrocket Your Checkout
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Integrations Section */}
+        <section className="py-20 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-14">
+              <span className="text-violet-600 font-semibold text-xs uppercase tracking-widest">Integration</span>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">Seamless Sync with Your Favorite Tools</h2>
+              <p className="text-gray-500 mt-3 max-w-xl mx-auto text-sm">
+                Maximize efficiency with StoreKriti's seamless integrations. Connect your favorite tools, streamline your workflow.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto">
+              {integrations.map((integration, i) => (
+                <span 
+                  key={i}
+                  className="bg-slate-100 text-gray-600 px-5 py-2.5 rounded-full text-sm font-medium hover:bg-violet-100 hover:text-violet-700 transition-colors cursor-pointer"
+                >
+                  {integration}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Testimonials Section */}
+        <section className="py-20 bg-slate-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-14">
+              <span className="text-violet-600 font-semibold text-xs uppercase tracking-widest">Voices of Trust</span>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">Client Success Stories</h2>
+              <p className="text-gray-500 mt-3 max-w-xl mx-auto text-sm">
+                Real feedback from our partners — see how StoreKriti has transformed their businesses.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8 mb-10">
+              {/* Large testimonial */}
+              <div className="bg-white rounded-2xl p-8 shadow-xl shadow-gray-100/50 border border-gray-100 md:row-span-2 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-4 mb-6">
+                    <img 
+                      src={testimonials[0].image}
+                      alt={testimonials[0].author}
+                      className="w-16 h-16 rounded-full object-cover ring-4 ring-violet-50"
+                    />
+                    <div className="flex gap-0.5">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} className="w-5 h-5 text-amber-400" fill="currentColor" />
+                      ))}
+                    </div>
+                  </div>
+                  <blockquote className="text-gray-600 text-lg leading-relaxed mb-6">
+                    "{testimonials[0].quote}"
+                  </blockquote>
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900">{testimonials[0].author}</div>
+                  <div className="text-gray-400 text-sm">{testimonials[0].role} of {testimonials[0].company}</div>
+                </div>
+              </div>
+
+              {/* Smaller testimonials */}
+              {testimonials.slice(1).map((testimonial, i) => (
+                <div key={i} className="bg-white rounded-2xl p-6 shadow-xl shadow-gray-100/50 border border-gray-100">
+                  <blockquote className="text-gray-600 mb-5 leading-relaxed">
+                    "{testimonial.quote}"
+                  </blockquote>
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src={testimonial.image}
+                      alt={testimonial.author}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                    <div>
+                      <div className="font-semibold text-gray-900 text-sm">{testimonial.author}</div>
+                      <div className="text-gray-400 text-xs">{testimonial.role} of {testimonial.company}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-center">
+              <Link to="/auth">
+                <Button variant="outline" className="rounded-full px-8 border-gray-300 hover:bg-gray-50 font-medium">
+                  Simplify Checkout
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Reviews Section */}
+        <section className="py-20 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-14">
+              <span className="text-violet-600 font-semibold text-xs uppercase tracking-widest">Voices of Experience</span>
+              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">What Our Clients Say</h2>
+              <p className="text-gray-500 mt-3 max-w-xl mx-auto text-sm">
+                Hear directly from our customers about their experience partnering with StoreKriti.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              {reviews.map((review, i) => (
+                <div key={i} className="bg-slate-50 rounded-2xl p-6 border border-gray-100 hover:shadow-lg transition-shadow">
+                  <div className="flex gap-0.5 mb-4">
+                    {[...Array(5)].map((_, j) => (
+                      <Star key={j} className="w-4 h-4 text-amber-400" fill="currentColor" />
+                    ))}
+                  </div>
+                  <p className="text-gray-600 mb-5 text-sm leading-relaxed">"{review.text}"</p>
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm">{review.role}</div>
+                    <div className="text-gray-400 text-xs">{review.company}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-center mt-10">
+              <Link to="/auth">
+                <Button className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-8 font-medium">
+                  Boost Revenue
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="py-20 bg-slate-50">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid md:grid-cols-2 gap-12 items-start">
+              <div>
+                <span className="text-violet-600 font-semibold text-xs uppercase tracking-widest">Support</span>
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mt-3 mb-4">FAQ: Your Questions, Answered</h2>
+                <p className="text-gray-500 mb-6 text-sm">
+                  Find quick answers to common queries and get clarity on how StoreKriti can work for you.
+                </p>
+                <Link to="/contact">
+                  <Button className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-6 font-medium">
+                    Get Answers
+                  </Button>
+                </Link>
+              </div>
+
+              <div className="space-y-4">
+                {faqs.map((faq, i) => (
+                  <div 
+                    key={i}
+                    className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
+                  >
+                    <button
+                      onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                      className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="font-semibold text-gray-900 text-sm pr-4">{faq.q}</span>
+                      {openFaq === i ? (
+                        <ChevronUp className="w-5 h-5 text-violet-500 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                      )}
+                    </button>
+                    {openFaq === i && (
+                      <div className="px-5 pb-5 text-gray-500 text-sm leading-relaxed">
+                        {faq.a}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-24 bg-gradient-to-br from-violet-600 via-purple-600 to-violet-700 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-10 left-10 w-72 h-72 bg-white rounded-full blur-3xl" />
+            <div className="absolute bottom-10 right-10 w-96 h-96 bg-white rounded-full blur-3xl" />
+          </div>
+          
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-6 tracking-tight">
+              Redefine the Checkout
+            </h2>
+            <p className="text-violet-100 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
+              Tap into the power of StoreKriti and let's transform your customer's journey together. It's time to lead the charge in D2C commerce.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link to="/auth">
+                <Button size="lg" className="bg-white text-violet-600 hover:bg-gray-100 rounded-full px-8 h-12 font-semibold shadow-xl">
+                  Get Started
+                </Button>
+              </Link>
+              <Link to="/features">
+                <Button size="lg" variant="outline" className="border-white/50 text-white hover:bg-white/10 rounded-full px-8 h-12 font-semibold backdrop-blur-sm">
+                  Explore Features
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="bg-gray-900 text-white py-16">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="grid md:grid-cols-4 gap-10">
+              {/* Brand */}
+              <div className="md:col-span-1">
+                <Link to="/" className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">S</span>
+                  </div>
+                  <span className="text-xl font-bold">StoreKriti</span>
+                </Link>
+                <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                  Streamlining your checkout experience with cutting-edge, one-click solution that converts.
+                </p>
+                <div className="flex gap-3">
+                  <a href="#" className="w-9 h-9 bg-gray-800 rounded-full flex items-center justify-center hover:bg-violet-600 transition-colors">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557a9.83 9.83 0 0 1-2.828.775 4.932 4.932 0 0 0 2.165-2.724 9.864 9.864 0 0 1-3.127 1.195 4.916 4.916 0 0 0-8.384 4.482A13.944 13.944 0 0 1 1.671 3.149a4.916 4.916 0 0 0 1.523 6.574 4.897 4.897 0 0 1-2.229-.616c-.054 2.281 1.581 4.415 3.949 4.89a4.935 4.935 0 0 1-2.224.084 4.918 4.918 0 0 0 4.6 3.419A9.867 9.867 0 0 1 0 19.54a13.94 13.94 0 0 0 7.548 2.212c9.142 0 14.307-7.721 13.995-14.646A10.025 10.025 0 0 0 24 4.557z"/></svg>
+                  </a>
+                  <a href="#" className="w-9 h-9 bg-gray-800 rounded-full flex items-center justify-center hover:bg-violet-600 transition-colors">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                  </a>
+                  <a href="#" className="w-9 h-9 bg-gray-800 rounded-full flex items-center justify-center hover:bg-violet-600 transition-colors">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>
+                  </a>
+                </div>
+              </div>
+
+              {/* Menu */}
+              <div>
+                <h4 className="font-semibold mb-4 text-sm">Menu</h4>
+                <ul className="space-y-3 text-gray-400 text-sm">
+                  <li><Link to="/" className="hover:text-white transition-colors">Home</Link></li>
+                  <li><Link to="/help" className="hover:text-white transition-colors">FAQs</Link></li>
+                  <li><Link to="/about" className="hover:text-white transition-colors">About</Link></li>
+                </ul>
+              </div>
+
+              {/* Company */}
+              <div>
+                <h4 className="font-semibold mb-4 text-sm">Company</h4>
+                <ul className="space-y-3 text-gray-400 text-sm">
+                  <li><Link to="/about" className="hover:text-white transition-colors">About us</Link></li>
+                  <li><Link to="/contact" className="hover:text-white transition-colors">Contact us</Link></li>
+                  <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+                  <li><Link to="/terms" className="hover:text-white transition-colors">Terms & Conditions</Link></li>
+                </ul>
+              </div>
+
+              {/* Contact */}
+              <div>
+                <h4 className="font-semibold mb-4 text-sm">Contact</h4>
+                <ul className="space-y-3 text-gray-400 text-sm">
+                  <li className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-violet-400" />
+                    hello@storekriti.com
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-500 text-sm">
+              Copyright © 2025 StoreKriti | All Rights Reserved
+            </div>
+          </div>
+        </footer>
+      </div>
+    </>
   );
 }
