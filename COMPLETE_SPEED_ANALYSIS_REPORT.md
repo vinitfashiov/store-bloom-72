@@ -9,7 +9,7 @@
 
 ## 📊 Current Performance Metrics
 
-### Page Load Times (Measured)
+### Page Load Times (Measured) 
 
 | Page | Cold Load | Warm Load | Target | Status |
 |------|-----------|-----------|--------|--------|
