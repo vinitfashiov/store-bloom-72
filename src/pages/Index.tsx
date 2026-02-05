@@ -181,64 +181,66 @@ export default function Index() {
           )}
         </nav>
 
-        {/* Hero Section */}
-        <section className="pt-24 pb-16 md:pt-32 md:pb-24 bg-gradient-to-b from-violet-50/70 via-white to-white overflow-hidden relative">
-          {/* Decorative elements */}
-          <div className="absolute top-20 left-10 w-20 h-20 bg-violet-200/30 rounded-full blur-2xl" />
-          <div className="absolute top-40 right-20 w-32 h-32 bg-purple-200/30 rounded-full blur-3xl" />
-          
+        {/* Hero Section - FlexyPe Style */}
+        <section className="pt-24 pb-8 md:pt-32 md:pb-16 overflow-hidden relative" style={{ background: 'linear-gradient(180deg, #e8f4fc 0%, #e5f7f3 50%, #f0faf5 100%)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="text-center max-w-4xl mx-auto">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-violet-100/80 text-violet-700 rounded-full px-4 py-2 text-sm font-medium mb-6 backdrop-blur-sm">
+              <div className="inline-flex items-center gap-2 bg-white/90 text-gray-700 rounded-full px-5 py-2.5 text-sm font-medium mb-8 shadow-sm border border-gray-100">
                 <span>🚀</span>
                 <span>Presenting StoreKriti</span>
               </div>
 
               {/* Headline */}
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6 tracking-tight">
+              <h1 className="text-4xl md:text-5xl lg:text-[64px] font-extrabold text-[#1a2b4a] leading-[1.1] mb-6 tracking-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>
                 Simple{' '}
-                <span className="relative inline-flex items-center">
-                  <span className="bg-gradient-to-r from-violet-600 via-purple-600 to-violet-600 bg-clip-text text-transparent">
+                <span className="relative inline-flex items-baseline">
+                  <span className="bg-gradient-to-r from-[#0066cc] via-[#0088dd] to-[#00aaee] bg-clip-text text-transparent">
                     1 click
                   </span>
-                  <Sparkles className="w-5 h-5 md:w-6 md:h-6 text-violet-500 ml-1 -mt-6 absolute -right-6 -top-1" />
+                  <svg className="w-4 h-4 md:w-5 md:h-5 text-[#0077cc] ml-0.5 -mt-4 absolute -right-5 -top-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="currentColor"/>
+                  </svg>
                 </span>
                 <br />
                 Checkout That Converts
               </h1>
 
               {/* Subheadline */}
-              <p className="text-lg md:text-xl text-gray-500 mb-8 max-w-2xl mx-auto leading-relaxed font-normal">
+              <p className="text-base md:text-lg text-gray-500 mb-10 max-w-xl mx-auto leading-relaxed font-normal">
                 Skyrocket your sales with the innovative checkout suite that provides a faster, smoother, and wiser checkout experience.
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-14">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
                 <Link to="/auth">
-                  <Button size="lg" className="bg-violet-600 hover:bg-violet-700 text-white rounded-full px-8 h-12 text-base font-semibold shadow-xl shadow-violet-300/40 transition-all hover:shadow-violet-300/60 hover:-translate-y-0.5">
+                  <Button size="lg" className="bg-[#1a2b4a] hover:bg-[#0f1d33] text-white rounded-full px-8 h-12 text-base font-semibold shadow-lg transition-all hover:-translate-y-0.5">
                     Talk to us
-                    <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 </Link>
-                <Button size="lg" variant="outline" className="rounded-full px-8 h-12 text-base font-semibold border-gray-300 hover:bg-gray-50 text-gray-700">
-                  <Play className="w-4 h-4 mr-2" />
+                <Button size="lg" variant="outline" className="rounded-full px-8 h-12 text-base font-semibold border-gray-300 bg-white hover:bg-gray-50 text-gray-700">
                   How it works
                 </Button>
               </div>
 
               {/* Dashboard Preview */}
-              <div className="relative max-w-4xl mx-auto">
-                <div className="bg-white rounded-2xl shadow-2xl shadow-gray-200/60 border border-gray-200/80 overflow-hidden">
+              <div className="relative max-w-5xl mx-auto">
+                <div className="bg-white rounded-xl shadow-2xl shadow-gray-300/40 border border-gray-200 overflow-hidden">
                   <img 
-                    src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&h=600&fit=crop"
+                    src="/dashboard.png"
                     alt="Dashboard Preview"
                     className="w-full h-auto"
+                    onError={(e) => {
+                      e.currentTarget.src = "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&h=700&fit=crop";
+                    }}
                   />
                   {/* Play button overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/5">
-                    <button className="w-16 h-16 md:w-20 md:h-20 bg-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform group">
-                      <Play className="w-6 h-6 md:w-8 md:h-8 text-violet-600 ml-1 group-hover:text-violet-700" fill="currentColor" />
+                  <div className="absolute bottom-8 right-8 md:bottom-12 md:right-12">
+                    <button className="flex items-center gap-3 bg-white/95 backdrop-blur-sm rounded-full pl-4 pr-6 py-3 shadow-xl hover:scale-105 transition-transform group border border-gray-100">
+                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <Play className="w-4 h-4 text-gray-700 ml-0.5" fill="currentColor" />
+                      </div>
+                      <span className="font-semibold text-gray-700">Play</span>
                     </button>
                   </div>
                 </div>
