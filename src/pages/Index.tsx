@@ -182,50 +182,53 @@ export default function Index() {
         </nav>
 
         {/* Hero Section - FlexyPe Style */}
-        <section className="pt-24 pb-8 md:pt-32 md:pb-16 overflow-hidden relative" style={{ background: 'linear-gradient(180deg, #e8f4fc 0%, #e5f7f3 50%, #f0faf5 100%)' }}>
+        <section className="pt-20 pb-4 md:pt-32 md:pb-16 overflow-hidden relative" style={{ background: 'linear-gradient(180deg, #e8f4fc 0%, #e5f7f3 50%, #f0faf5 100%)' }}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="text-center max-w-4xl mx-auto">
               {/* Badge */}
-              <div className="inline-flex items-center gap-2 bg-white/90 text-gray-700 rounded-full px-5 py-2.5 text-sm font-medium mb-8 shadow-sm border border-gray-100">
+              <div className="inline-flex items-center gap-2 bg-white/90 text-gray-700 rounded-full px-4 py-2 md:px-5 md:py-2.5 text-xs md:text-sm font-medium mb-6 md:mb-8 shadow-sm border border-gray-100">
                 <span>🚀</span>
                 <span>Presenting StoreKriti</span>
               </div>
 
-              {/* Headline */}
-              <h1 className="text-4xl md:text-5xl lg:text-[64px] font-extrabold text-[#1a2b4a] leading-[1.1] mb-6 tracking-tight" style={{ fontFamily: "'Manrope', sans-serif" }}>
-                Simple{' '}
+              {/* Headline - Mobile optimized line breaks */}
+              <h1 className="text-[32px] md:text-5xl lg:text-[64px] font-extrabold text-[#1a2b4a] leading-[1.15] md:leading-[1.1] mb-5 md:mb-6 tracking-tight px-2 md:px-0" style={{ fontFamily: "'Manrope', sans-serif" }}>
+                <span className="inline md:inline">Simple </span>
                 <span className="relative inline-flex items-baseline">
                   <span className="bg-gradient-to-r from-[#0066cc] via-[#0088dd] to-[#00aaee] bg-clip-text text-transparent">
                     1 click
                   </span>
-                  <svg className="w-4 h-4 md:w-5 md:h-5 text-[#0077cc] ml-0.5 -mt-4 absolute -right-5 -top-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg className="w-3.5 h-3.5 md:w-5 md:h-5 text-[#0077cc] absolute -right-4 md:-right-5 -top-0.5 md:-top-1" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" fill="currentColor"/>
                   </svg>
                 </span>
-                <br />
-                Checkout That Converts
+                <br className="md:hidden" />
+                <span className="hidden md:inline"><br /></span>
+                <span className="block md:inline">Checkout That</span>
+                <br className="md:hidden" />
+                <span className="block md:inline"> Converts</span>
               </h1>
 
               {/* Subheadline */}
-              <p className="text-base md:text-lg text-gray-500 mb-10 max-w-xl mx-auto leading-relaxed font-normal">
+              <p className="text-sm md:text-lg text-gray-500 mb-8 md:mb-10 max-w-sm md:max-w-xl mx-auto leading-relaxed font-normal px-4 md:px-0">
                 Skyrocket your sales with the innovative checkout suite that provides a faster, smoother, and wiser checkout experience.
               </p>
 
-              {/* CTA Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
+              {/* CTA Buttons - Side by side on mobile */}
+              <div className="flex flex-row items-center justify-center gap-3 md:gap-4 mb-10 md:mb-16 px-4 md:px-0">
                 <Link to="/auth">
-                  <Button size="lg" className="bg-[#1a2b4a] hover:bg-[#0f1d33] text-white rounded-full px-8 h-12 text-base font-semibold shadow-lg transition-all hover:-translate-y-0.5">
+                  <Button size="default" className="bg-[#1a2b4a] hover:bg-[#0f1d33] text-white rounded-full px-5 md:px-8 h-10 md:h-12 text-sm md:text-base font-semibold shadow-lg transition-all hover:-translate-y-0.5">
                     Talk to us
                   </Button>
                 </Link>
-                <Button size="lg" variant="outline" className="rounded-full px-8 h-12 text-base font-semibold border-gray-300 bg-white hover:bg-gray-50 text-gray-700">
+                <Button size="default" variant="outline" className="rounded-full px-5 md:px-8 h-10 md:h-12 text-sm md:text-base font-semibold border-gray-300 bg-white hover:bg-gray-50 text-gray-700">
                   How it works
                 </Button>
               </div>
 
-              {/* Dashboard Preview */}
-              <div className="relative max-w-5xl mx-auto">
-                <div className="bg-white rounded-xl shadow-2xl shadow-gray-300/40 border border-gray-200 overflow-hidden">
+              {/* Dashboard Preview - Full width on mobile */}
+              <div className="relative max-w-5xl mx-auto -mx-4 md:mx-auto px-0 md:px-0">
+                <div className="bg-white rounded-lg md:rounded-xl shadow-2xl shadow-gray-300/40 border border-gray-200 overflow-hidden mx-2 md:mx-0">
                   <img 
                     src="/dashboard.png"
                     alt="Dashboard Preview"
@@ -234,13 +237,13 @@ export default function Index() {
                       e.currentTarget.src = "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&h=700&fit=crop";
                     }}
                   />
-                  {/* Play button overlay */}
-                  <div className="absolute bottom-8 right-8 md:bottom-12 md:right-12">
-                    <button className="flex items-center gap-3 bg-white/95 backdrop-blur-sm rounded-full pl-4 pr-6 py-3 shadow-xl hover:scale-105 transition-transform group border border-gray-100">
-                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                        <Play className="w-4 h-4 text-gray-700 ml-0.5" fill="currentColor" />
+                  {/* Play button overlay - Centered on mobile, bottom-right on desktop */}
+                  <div className="absolute inset-0 flex items-center justify-center md:items-end md:justify-end md:pb-12 md:pr-12">
+                    <button className="flex items-center gap-2 md:gap-3 bg-white/95 backdrop-blur-sm rounded-full pl-3 md:pl-4 pr-5 md:pr-6 py-2.5 md:py-3 shadow-xl hover:scale-105 transition-transform group border border-gray-100">
+                      <div className="w-8 h-8 md:w-10 md:h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                        <Play className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-700 ml-0.5" fill="currentColor" />
                       </div>
-                      <span className="font-semibold text-gray-700">Play</span>
+                      <span className="font-semibold text-gray-700 text-sm md:text-base">Play</span>
                     </button>
                   </div>
                 </div>
