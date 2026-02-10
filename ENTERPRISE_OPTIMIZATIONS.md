@@ -5,6 +5,7 @@ This document outlines the optimizations implemented for handling lakhs of users
 ## 🚀 Key Optimizations
 
 ### 1. Full-Text Search (GIN Indexes)
+
 - **Products**: Name, description, SKU search
 - **Customers**: Name, email, phone search
 - **Orders**: Order number, customer name, phone search
@@ -12,7 +13,8 @@ This document outlines the optimizations implemented for handling lakhs of users
 
 **Usage**: Use `ILIKE` or `pg_trgm` similarity functions for fuzzy search.
 
-### 2. Materialized Views for Analytics
+### 2. Materiali zed Views for Analytics
+
 Three materialized views are created for fast analytics queries:
 
 - **mv_daily_sales_summary**: Daily sales metrics per tenant
@@ -22,6 +24,7 @@ Three materialized views are created for fast analytics queries:
 **Refresh**: Run `SELECT refresh_analytics_views();` daily (recommended: 2 AM via pg_cron)
 
 ### 3. Archival Strategy
+
 - **Orders Archive**: Orders older than 2 years
 - **Order Items Archive**: Corresponding order items
 - **Inventory Movements Archive**: Movements older than 1 year
@@ -29,9 +32,11 @@ Three materialized views are created for fast analytics queries:
 **Archival**: Run `SELECT archive_old_orders();` monthly
 
 ### 4. Pagination Functions
+
 Two helper functions for efficient pagination:
 
 #### `get_paginated_orders()`
+
 ```sql
 SELECT * FROM get_paginated_orders(
   'tenant-uuid',
@@ -43,6 +48,7 @@ SELECT * FROM get_paginated_orders(
 ```
 
 #### `search_products()`
+
 ```sql
 SELECT * FROM search_products(
   'tenant-uuid',
@@ -57,11 +63,13 @@ SELECT * FROM search_products(
 ```
 
 ### 5. Performance Indexes
+
 - **Composite indexes** for common query patterns
 - **BRIN indexes** for date range queries on large tables
 - **Partial indexes** for filtered queries (e.g., active products only)
 
 ### 6. Database Maintenance
+
 - **analyze_tables()**: Updates table statistics (run weekly)
 - **Query performance logging**: Track slow queries (optional)
 
@@ -70,29 +78,33 @@ SELECT * FROM search_products(
 Set up these cron jobs via Supabase Dashboard or pg_cron:
 
 1. **Daily Analytics Refresh** (2 AM)
+
    ```sql
-   SELECT cron.schedule('refresh-analytics', '0 2 * * *', 
+   SELECT cron.schedule('refresh-analytics', '0 2 * * *',
      $$SELECT refresh_analytics_views()$$);
    ```
 
 2. **Monthly Archival** (1st of month, 3 AM)
+
    ```sql
-   SELECT cron.schedule('archive-orders', '0 3 1 * *', 
+   SELECT cron.schedule('archive-orders', '0 3 1 * *',
      $$SELECT archive_old_orders()$$);
    ```
 
 3. **Weekly Table Analysis** (Sunday, 4 AM)
    ```sql
-   SELECT cron.schedule('analyze-tables', '0 4 * * 0', 
+   SELECT cron.schedule('analyze-tables', '0 4 * * 0',
      $$SELECT analyze_tables()$$);
    ```
 
 ## 🔧 Frontend Implementation Recommendations
 
 ### 1. Implement Pagination
+
 Replace queries that fetch all records with paginated queries:
 
 **Before:**
+
 ```typescript
 const { data } = await supabase
   .from('orders')
@@ -101,6 +113,7 @@ const { data } = await supabase
 ```
 
 **After:**
+
 ```typescript
 const { data, count } = await supabase
   .from('orders')
@@ -110,6 +123,7 @@ const { data, count } = await supabase
 ```
 
 ### 2. Use Search Functions
+
 For product search, use the `search_products()` function:
 
 ```typescript
@@ -122,6 +136,7 @@ const { data, error } = await supabase.rpc('search_products', {
 ```
 
 ### 3. Cache Analytics Data
+
 Use React Query with appropriate cache times for analytics:
 
 ```typescript
@@ -133,15 +148,17 @@ const { data } = useQuery({
 ```
 
 ### 4. Implement Virtual Scrolling
+
 For large lists (products, orders), use virtual scrolling libraries like `react-window` or `react-virtual`.
 
 ## 📈 Monitoring
 
 ### Query Performance
+
 Monitor slow queries using the `query_performance_log` table:
 
 ```sql
-SELECT 
+SELECT
   query_name,
   AVG(execution_time_ms) as avg_time,
   MAX(execution_time_ms) as max_time,
@@ -153,10 +170,11 @@ ORDER BY avg_time DESC;
 ```
 
 ### Table Sizes
+
 Monitor table growth:
 
 ```sql
-SELECT 
+SELECT
   schemaname,
   tablename,
   pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
@@ -168,16 +186,19 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ## 🚨 When to Scale Further
 
 ### Consider Partitioning When:
+
 - Orders table exceeds **10 million rows**
 - Queries on date ranges become slow (>500ms)
 - Table size exceeds **50GB**
 
 ### Consider Read Replicas When:
+
 - Read queries are >80% of total queries
 - Storefront queries are slow during peak hours
 - Analytics queries impact production performance
 
 ### Consider Sharding When:
+
 - Single tenant has >1 million orders
 - Database size exceeds **500GB**
 - Need geographic distribution
@@ -199,17 +220,19 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ## 🆘 Troubleshooting
 
 ### Slow Queries
+
 1. Check if indexes are being used: `EXPLAIN ANALYZE <query>`
 2. Update statistics: `SELECT analyze_tables();`
 3. Check for missing indexes on frequently queried columns
 
 ### Materialized Views Not Updating
+
 - Check cron job status
 - Manually refresh: `SELECT refresh_analytics_views();`
 - Verify view definitions are correct
 
 ### Archive Process Failing
+
 - Check disk space
 - Verify archive tables exist
 - Check for foreign key constraints blocking deletion
-
